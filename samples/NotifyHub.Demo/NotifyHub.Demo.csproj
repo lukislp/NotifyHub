@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>notifyhub-demo-6f6a6c8e-2f0b-4b3a-9b0e-7f6e6a9c1d2f</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NotifyHub\NotifyHub.csproj" />
+    <ProjectReference Include="..\..\src\NotifyHub.AspNetCore\NotifyHub.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

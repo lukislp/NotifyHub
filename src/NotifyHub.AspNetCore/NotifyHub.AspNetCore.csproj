@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>true</IsPackable>
+    <PackageId>NotifyHub.AspNetCore</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Ready-to-use minimal API endpoints (subscribe/unsubscribe/send) for NotifyHub - optional add-on for host apps that want HTTP endpoints instead of in-process calls.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NotifyHub\NotifyHub.csproj" />
+  </ItemGroup>
+
+</Project>

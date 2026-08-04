@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/NotifyHub.Demo/NotifyHub.Demo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/NotifyHub.AspNetCore/NotifyHub.AspNetCore.csproj" />
+    <Project Path="src/NotifyHub/NotifyHub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NotifyHub.Tests/NotifyHub.Tests.csproj" />
+  </Folder>
+</Solution>

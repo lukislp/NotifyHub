@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NotifyHub Demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
+  input, textarea { width: 100%; padding: 0.4rem; box-sizing: border-box; }
+  button { margin-top: 1rem; margin-right: 0.5rem; padding: 0.5rem 1rem; cursor: pointer; }
+  #status { margin-top: 1rem; padding: 0.75rem; border-radius: 4px; background: #eee; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>NotifyHub Demo - Web Push</h1>
+<p>User ID (freely chosen, only used to associate the subscription):</p>
+<label>User ID</label>
+<input id="userId" value="demo-user" />
+
+<button id="subscribeBtn">Subscribe to push</button>
+<button id="unsubscribeBtn">Unsubscribe</button>
+
+<h2>Email notification</h2>
+<label>Email address</label>
+<input id="emailAddress" type="email" placeholder="you@example.com" />
+<button id="subscribeEmailBtn">Subscribe to email</button>
+
+<h2>Send test message</h2>
+<label>Title</label>
+<input id="title" value="Hello from NotifyHub" />
+<label>Body</label>
+<textarea id="body" rows="2">This is a test notification.</textarea>
+<label>Link (optional)</label>
+<input id="url" placeholder="https://..." />
+<button id="sendBtn">Send</button>
+
+<div id="status">Ready.</div>
+
+<script>
+function log(msg) {
+    const el = document.getElementById('status');
+    el.textContent = (typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2));
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function subscribePush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        log('Push is not supported by this browser.');
+        return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+        const keyResp = await fetch('/notifyhub/vapid-public-key');
+        const { publicKey } = await keyResp.json();
+        sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+    }
+    const json = sub.toJSON();
+    const userId = document.getElementById('userId').value;
+    const resp = await fetch('/notifyhub/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId,
+            channel: 0, // NotificationChannel.WebPush
+            endpoint: sub.endpoint,
+            p256dh: json.keys.p256dh,
+            auth: json.keys.auth,
+        }),
+    });
+    log(await resp.json());
+}
+
+async function subscribeEmail() {
+    const userId = document.getElementById('userId').value;
+    const emailAddress = document.getElementById('emailAddress').value;
+    const resp = await fetch('/notifyhub/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId,
+            channel: 4, // NotificationChannel.Email
+            emailAddress,
+        }),
+    });
+    log(await resp.json());
+}
+
+async function unsubscribePush() {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    log('Browser subscription removed (server record remains until the next expired send attempt or manual deletion).');
+}
+
+async function sendTest() {
+    const userId = document.getElementById('userId').value;
+    const title = document.getElementById('title').value;
+    const body = document.getElementById('body').value;
+    const url = document.getElementById('url').value || null;
+    const resp = await fetch('/notifyhub/notifications/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, broadcast: false, title, body, url }),
+    });
+    log(await resp.json());
+}
+
+document.getElementById('subscribeBtn').addEventListener('click', () => subscribePush().catch(e => log('Error: ' + e)));
+document.getElementById('unsubscribeBtn').addEventListener('click', () => unsubscribePush().catch(e => log('Error: ' + e)));
+document.getElementById('subscribeEmailBtn').addEventListener('click', () => subscribeEmail().catch(e => log('Error: ' + e)));
+document.getElementById('sendBtn').addEventListener('click', () => sendTest().catch(e => log('Error: ' + e)));
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js');
+}
+</script>
+</body>
+</html>
