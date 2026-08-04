@@ -9,6 +9,11 @@
     <Version>0.1.0</Version>
     <Description>Ready-to-use minimal API endpoints (subscribe/unsubscribe/send) for NotifyHub - optional add-on for host apps that want HTTP endpoints instead of in-process calls.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Authors>Lukas Körber</Authors>
+    <RepositoryUrl>https://github.com/lukislp/NotifyHub</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>notifications;push-notifications;aspnetcore;webhook</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NotifyHub\NotifyHub.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

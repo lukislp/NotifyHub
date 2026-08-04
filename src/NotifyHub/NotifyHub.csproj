@@ -9,10 +9,19 @@
     <Version>0.1.0</Version>
     <Description>Universal notification library: Web Push (VAPID), APNs, FCM, webhook, and email - configured and hosted by the referencing application.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Authors>Lukas Körber</Authors>
+    <RepositoryUrl>https://github.com/lukislp/NotifyHub</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>notifications;push-notifications;webpush;apns;fcm;email;webhook</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="NotifyHub.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 *.user
+nupkg/
 
 ## Runtime data (VAPID key file, see Stores/FileVapidKeyStore.cs)
 notifyhub-vapid-keys.json
