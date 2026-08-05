@@ -25,6 +25,21 @@ public sealed record Subscription
     /// <summary>Target URL for generic webhook delivery.</summary>
     public string? Url { get; init; }
 
+    /// <summary>Optional shared secret for the webhook channel (Webhook). When set, requests
+    /// carry an <c>X-NotifyHub-Signature: sha256=&lt;hex&gt;</c> header - an HMAC-SHA256 over the
+    /// raw request body - so the receiver can verify the call really came from NotifyHub and
+    /// wasn't tampered with. Omit to send unsigned, as before this was introduced.</summary>
+    public string? WebhookSecret { get; init; }
+
+    /// <summary>Optional extra HTTP headers sent with every webhook request (Webhook) - e.g. an
+    /// <c>Authorization</c> header required by a custom endpoint.</summary>
+    public IReadOnlyDictionary<string, string>? WebhookHeaders { get; init; }
+
+    /// <summary>JSON body shape used when posting to <see cref="Url"/> (Webhook). Default:
+    /// <see cref="WebhookPayloadFormat.Generic"/> - set this to <see cref="WebhookPayloadFormat.Slack"/>
+    /// or <see cref="WebhookPayloadFormat.Discord"/> when the target is one of those services.</summary>
+    public WebhookPayloadFormat WebhookFormat { get; init; } = WebhookPayloadFormat.Generic;
+
     /// <summary>Recipient address for email delivery.</summary>
     public string? EmailAddress { get; init; }
 
@@ -51,11 +66,19 @@ public sealed record Subscription
         Id = id,
     };
 
-    public static Subscription Webhook(string url, string? id = null) => new()
+    public static Subscription Webhook(
+        string url,
+        string? id = null,
+        string? secret = null,
+        IReadOnlyDictionary<string, string>? headers = null,
+        WebhookPayloadFormat format = WebhookPayloadFormat.Generic) => new()
     {
         Channel = NotificationChannel.Webhook,
         Url = url,
         Id = id,
+        WebhookSecret = secret,
+        WebhookHeaders = headers,
+        WebhookFormat = format,
     };
 
     public static Subscription Email(string emailAddress, string? id = null) => new()

@@ -1,5 +1,6 @@
 using NotifyHub;
 using NotifyHub.AspNetCore;
+using NotifyHub.Demo;
 using NotifyHub.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,5 +51,26 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapNotifyHubEndpoints();
+
+// Built-in webhook receiver, for trying out the Webhook channel end-to-end without any external
+// account or tool (webhook.site, ngrok, ...): subscribe with the URL of this very endpoint
+// (see wwwroot/index.html), send a test notification, and watch it show up in the log below.
+// Also surfaces the X-NotifyHub-Signature header (present when Subscription.Webhook(...) was
+// configured with a secret), so signing can be verified visually without extra tooling.
+// Sample-only - not part of the NotifyHub library itself.
+app.MapPost("/demo/webhook-sink", async (HttpRequest request) =>
+{
+    using var reader = new StreamReader(request.Body);
+    var body = await reader.ReadToEndAsync();
+    var signature = request.Headers.TryGetValue("X-NotifyHub-Signature", out var value) ? value.ToString() : null;
+    WebhookLog.Add(body, signature);
+    return Results.Ok();
+});
+app.MapGet("/demo/webhook-log", () => Results.Ok(WebhookLog.GetAll()));
+app.MapDelete("/demo/webhook-log", () =>
+{
+    WebhookLog.Clear();
+    return Results.NoContent();
+});
 
 app.Run();
