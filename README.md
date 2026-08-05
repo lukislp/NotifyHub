@@ -311,6 +311,24 @@ For production use, implement `ISubscriptionStore` against your own DB and wire 
 services.AddNotifyHubEndpoints(endpoints => endpoints.WithSubscriptionStore(new MyDbSubscriptionStore(dbContext)));
 ```
 
+### Securing the endpoints
+
+By default, none of the mapped endpoints require authentication - just like `AddNotifyHub(...)`
+itself, this works out of the box with zero required configuration. Since
+`MapNotifyHubEndpoints()` returns its own `RouteGroupBuilder`, requiring auth on every one of
+these endpoints (without affecting the rest of your app's routes) is a single extra call:
+
+```csharp
+app.MapNotifyHubEndpoints().RequireAuthorization();
+```
+
+This needs your app to have authentication/authorization configured as usual
+(`AddAuthentication()`/`AddAuthorization()` + `UseAuthentication()`/`UseAuthorization()`). Any
+other route group convention (`RequireCors(...)`, `RequireRateLimiting(...)`, etc.) can be chained
+the same way. Without it, anyone who can reach these endpoints can subscribe/unsubscribe any user
+ID and trigger sends (including broadcast) - fine for local prototyping, but you should add
+`RequireAuthorization()` (or equivalent) before exposing this to the internet.
+
 ## Handling send results
 
 `SendAsync` returns one `ChannelSendResult` per subscription, in the same order:

@@ -25,18 +25,31 @@ public sealed record SendRequest(
 public sealed record SendResultDto(string? SubscriptionId, NotificationChannel Channel, string Outcome, string? Error);
 
 /// <summary>Ready-to-use minimal API endpoints around NotifyHub. Requires
-/// <c>AddNotifyHub(...)</c> and <c>AddNotifyHubEndpoints(...)</c>.</summary>
+/// <c>AddNotifyHub(...)</c> and <c>AddNotifyHubEndpoints(...)</c>.
+///
+/// By default, all endpoints are unauthenticated/unauthorized - just like <c>AddNotifyHub(...)</c>
+/// itself, this works out of the box with zero required configuration. Since
+/// <see cref="MapNotifyHubEndpoints"/> maps onto its own <see cref="RouteGroupBuilder"/>, securing
+/// every mapped endpoint at once is a single extra call, without affecting the rest of the host
+/// app's routes:
+/// <code>
+/// app.MapNotifyHubEndpoints().RequireAuthorization();
+/// </code>
+/// Any other <see cref="RouteGroupBuilder"/> convention (e.g. <c>RequireCors(...)</c>,
+/// <c>RequireRateLimiting(...)</c>) can be chained the same way.</summary>
 public static class NotifyHubEndpoints
 {
-    public static IEndpointRouteBuilder MapNotifyHubEndpoints(this IEndpointRouteBuilder app, string prefix = "/notifyhub")
+    public static RouteGroupBuilder MapNotifyHubEndpoints(this IEndpointRouteBuilder app, string prefix = "/notifyhub")
     {
-        app.MapGet($"{prefix}/vapid-public-key", async (VapidKeyProvider vapid) =>
+        var group = app.MapGroup(prefix);
+
+        group.MapGet("/vapid-public-key", async (VapidKeyProvider vapid) =>
         {
             var keys = await vapid.EnsureKeysAsync();
             return Results.Ok(new { publicKey = keys.PublicKey });
         });
 
-        app.MapPost($"{prefix}/subscriptions", async (SubscribeRequest req, ISubscriptionStore store) =>
+        group.MapPost("/subscriptions", async (SubscribeRequest req, ISubscriptionStore store) =>
         {
             Subscription subscription;
             try
@@ -63,19 +76,19 @@ public static class NotifyHubEndpoints
             return Results.Ok(new { id = stored.Id });
         });
 
-        app.MapDelete($"{prefix}/subscriptions/{{id}}", async (string id, ISubscriptionStore store) =>
+        group.MapDelete("/subscriptions/{id}", async (string id, ISubscriptionStore store) =>
         {
             await store.DeleteAsync(id);
             return Results.NoContent();
         });
 
-        app.MapGet($"{prefix}/subscriptions", async (string userId, ISubscriptionStore store) =>
+        group.MapGet("/subscriptions", async (string userId, ISubscriptionStore store) =>
         {
             var subs = await store.GetByUserIdAsync(userId);
             return Results.Ok(subs.Select(s => new { s.Id, s.Subscription.Channel, s.CreatedAt }));
         });
 
-        app.MapPost($"{prefix}/notifications/send", async (SendRequest req, ISubscriptionStore store, NotificationSender sender) =>
+        group.MapPost("/notifications/send", async (SendRequest req, ISubscriptionStore store, NotificationSender sender) =>
         {
             var targets = req.Broadcast
                 ? await store.GetAllAsync()
@@ -101,6 +114,6 @@ public static class NotifyHubEndpoints
             return Results.Ok(dto);
         });
 
-        return app;
+        return group;
     }
 }
