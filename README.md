@@ -215,16 +215,40 @@ reported as `SendOutcome.Expired`.
 
 ### Webhook
 
-Always active, no configuration required. POSTs the notification as JSON
-(`{ title, body, url, data }`) to any URL - useful for Slack, Discord, Home Assistant, n8n, or
-your own service.
+Always active, no configuration required. POSTs the notification to any URL - useful for Slack,
+Discord, Home Assistant, n8n, or your own service.
 
 ```csharp
 Subscription.Webhook("https://your-service.example.com/hooks/notify");
 ```
 
+By default the body is NotifyHub's own generic shape (`{ title, body, url, data }`), which Home
+Assistant/n8n/your own endpoints can read directly. **Slack and Discord expect their own shape and
+reject the generic one** - pass `format` to match the target:
+
+```csharp
+Subscription.Webhook("https://hooks.slack.com/services/...", format: WebhookPayloadFormat.Slack);   // { text }
+Subscription.Webhook("https://discord.com/api/webhooks/...", format: WebhookPayloadFormat.Discord); // { content }
+```
+
+Two more opt-in parameters, both off by default:
+
+```csharp
+Subscription.Webhook(
+    "https://your-service.example.com/hooks/notify",
+    secret: "shared-secret",                                     // adds X-NotifyHub-Signature: sha256=<hmac>
+    headers: new Dictionary<string, string> { ["Authorization"] = "Bearer ..." });
+```
+
+- `secret` signs the raw request body with HMAC-SHA256 and adds it as an
+  `X-NotifyHub-Signature: sha256=<hex>` header, so the receiver can verify the call really came
+  from NotifyHub and wasn't tampered with.
+- `headers` sends arbitrary extra HTTP headers with every request - e.g. an `Authorization` token
+  required by a custom endpoint.
+
 A 404/410 response is reported as `SendOutcome.Expired`, so the host app can clean up dead
 endpoints the same way it cleans up expired push tokens.
+
 
 ### Email (SMTP)
 
@@ -365,6 +389,11 @@ Then open `http://localhost:5000` (or whichever URL is printed), click "Subscrib
 browser notification. The same page also has a form to subscribe an email address, if you've
 configured `Vapid:Subject`/`Smtp:*` via configuration (see comments in
 `samples/NotifyHub.Demo/Program.cs`).
+
+The page also has a Webhook form, prefilled with the demo's own built-in `/demo/webhook-sink`
+endpoint - subscribe, send a test message, and the received call shows up live in the "Webhook
+log" panel at the bottom of the page. No external account or tool (webhook.site, ngrok, ...)
+needed to try out the Webhook channel end-to-end.
 
 ## Testing on a real iPhone
 

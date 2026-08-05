@@ -10,6 +10,7 @@
   input, textarea { width: 100%; padding: 0.4rem; box-sizing: border-box; }
   button { margin-top: 1rem; margin-right: 0.5rem; padding: 0.5rem 1rem; cursor: pointer; }
   #status { margin-top: 1rem; padding: 0.75rem; border-radius: 4px; background: #eee; white-space: pre-wrap; }
+  #webhookLog { margin-top: 0.75rem; padding: 0.75rem; border-radius: 4px; background: #eee; white-space: pre-wrap; max-height: 240px; overflow-y: auto; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -26,6 +27,22 @@
 <input id="emailAddress" type="email" placeholder="you@example.com" />
 <button id="subscribeEmailBtn">Subscribe to email</button>
 
+<h2>Webhook notification</h2>
+<p>Defaults to this demo's own built-in receiver, so you can test the Webhook channel
+end-to-end without any external account or tool - subscribe, send below, then check the log
+at the bottom of the page.</p>
+<label>Webhook URL</label>
+<input id="webhookUrl" />
+<label>Payload format</label>
+<select id="webhookFormat">
+  <option value="0">Generic (NotifyHub JSON)</option>
+  <option value="1">Slack ({ text })</option>
+  <option value="2">Discord ({ content })</option>
+</select>
+<label>Secret (optional - signs requests with X-NotifyHub-Signature)</label>
+<input id="webhookSecret" placeholder="leave empty for unsigned requests" />
+<button id="subscribeWebhookBtn">Subscribe to webhook</button>
+
 <h2>Send test message</h2>
 <label>Title</label>
 <input id="title" value="Hello from NotifyHub" />
@@ -36,6 +53,14 @@
 <button id="sendBtn">Send</button>
 
 <div id="status">Ready.</div>
+
+<h2>Webhook log (built-in receiver)</h2>
+<p>Calls received by this demo's own <code>/demo/webhook-sink</code> endpoint - refreshes
+automatically every 2 seconds.</p>
+<button id="refreshLogBtn">Refresh now</button>
+<button id="clearLogBtn">Clear</button>
+<pre id="webhookLog">(empty)</pre>
+
 
 <script>
 function log(msg) {
@@ -96,11 +121,44 @@ async function subscribeEmail() {
     log(await resp.json());
 }
 
+async function subscribeWebhook() {
+    const userId = document.getElementById('userId').value;
+    const url = document.getElementById('webhookUrl').value;
+    const webhookFormat = parseInt(document.getElementById('webhookFormat').value, 10);
+    const webhookSecret = document.getElementById('webhookSecret').value || null;
+    const resp = await fetch('/notifyhub/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId,
+            channel: 3, // NotificationChannel.Webhook
+            url,
+            webhookFormat,
+            webhookSecret,
+        }),
+    });
+    log(await resp.json());
+}
+
 async function unsubscribePush() {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
     log('Browser subscription removed (server record remains until the next expired send attempt or manual deletion).');
+}
+
+async function refreshWebhookLog() {
+    const resp = await fetch('/demo/webhook-log');
+    const entries = await resp.json();
+    const el = document.getElementById('webhookLog');
+    el.textContent = entries.length
+        ? entries.map(e => `[${e.receivedAt}]${e.signature ? '\nSignature: ' + e.signature : ''}\n${e.body}`).join('\n\n')
+        : '(empty)';
+}
+
+async function clearWebhookLog() {
+    await fetch('/demo/webhook-log', { method: 'DELETE' });
+    await refreshWebhookLog();
 }
 
 async function sendTest() {
@@ -119,7 +177,14 @@ async function sendTest() {
 document.getElementById('subscribeBtn').addEventListener('click', () => subscribePush().catch(e => log('Error: ' + e)));
 document.getElementById('unsubscribeBtn').addEventListener('click', () => unsubscribePush().catch(e => log('Error: ' + e)));
 document.getElementById('subscribeEmailBtn').addEventListener('click', () => subscribeEmail().catch(e => log('Error: ' + e)));
+document.getElementById('subscribeWebhookBtn').addEventListener('click', () => subscribeWebhook().catch(e => log('Error: ' + e)));
 document.getElementById('sendBtn').addEventListener('click', () => sendTest().catch(e => log('Error: ' + e)));
+document.getElementById('refreshLogBtn').addEventListener('click', () => refreshWebhookLog().catch(e => log('Error: ' + e)));
+document.getElementById('clearLogBtn').addEventListener('click', () => clearWebhookLog().catch(e => log('Error: ' + e)));
+
+document.getElementById('webhookUrl').value = location.origin + '/demo/webhook-sink';
+setInterval(() => refreshWebhookLog().catch(() => {}), 2000);
+refreshWebhookLog().catch(() => {});
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js');

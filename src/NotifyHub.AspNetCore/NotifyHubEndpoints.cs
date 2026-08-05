@@ -12,7 +12,10 @@ public sealed record SubscribeRequest(
     string? Auth = null,
     string? DeviceToken = null,
     string? Url = null,
-    string? EmailAddress = null);
+    string? EmailAddress = null,
+    string? WebhookSecret = null,
+    Dictionary<string, string>? WebhookHeaders = null,
+    WebhookPayloadFormat WebhookFormat = WebhookPayloadFormat.Generic);
 
 public sealed record SendRequest(
     string? UserId,
@@ -62,7 +65,11 @@ public static class NotifyHubEndpoints
                         req.Auth ?? throw new ArgumentException("Auth is missing.")),
                     NotificationChannel.Apns => Subscription.Apns(req.DeviceToken ?? throw new ArgumentException("DeviceToken is missing.")),
                     NotificationChannel.Fcm => Subscription.Fcm(req.DeviceToken ?? throw new ArgumentException("DeviceToken is missing.")),
-                    NotificationChannel.Webhook => Subscription.Webhook(req.Url ?? throw new ArgumentException("Url is missing.")),
+                    NotificationChannel.Webhook => Subscription.Webhook(
+                        req.Url ?? throw new ArgumentException("Url is missing."),
+                        secret: req.WebhookSecret,
+                        headers: req.WebhookHeaders,
+                        format: req.WebhookFormat),
                     NotificationChannel.Email => Subscription.Email(req.EmailAddress ?? throw new ArgumentException("EmailAddress is missing.")),
                     _ => throw new ArgumentOutOfRangeException(nameof(req)),
                 };
