@@ -60,26 +60,24 @@ simply skipped (`SendOutcome.Skipped`) - no exceptions, no special-casing requir
 
 ## Installation
 
-Reference the core library:
-
-```
-dotnet add package NotifyHub
-```
-
-Add the optional HTTP endpoints add-on if you want ready-made subscribe/unsubscribe/send routes
-instead of calling `NotificationSender` in-process:
-
-```
-dotnet add package NotifyHub.AspNetCore
-```
-
-Not yet published to nuget.org? Reference the projects directly from a checkout of this repo:
+**Not yet published to NuGet.org.** Until the first release goes out, reference the projects
+directly from a checkout of this repo:
 
 ```xml
 <ItemGroup>
   <ProjectReference Include="..\path\to\NotifyHub\src\NotifyHub\NotifyHub.csproj" />
   <ProjectReference Include="..\path\to\NotifyHub\src\NotifyHub.AspNetCore\NotifyHub.AspNetCore.csproj" />
 </ItemGroup>
+```
+
+(`NotifyHub.AspNetCore` is optional - only needed if you want the ready-made subscribe/unsubscribe/send
+HTTP endpoints instead of calling `NotificationSender` in-process.)
+
+Once published, the packages will be installable the normal way:
+
+```
+dotnet add package NotifyHub
+dotnet add package NotifyHub.AspNetCore
 ```
 
 ## Project structure
