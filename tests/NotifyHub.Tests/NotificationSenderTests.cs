@@ -137,6 +137,54 @@ public class NotificationSenderTests
         Assert.Equal(SendOutcome.Skipped, results[0].Outcome);
     }
 
+    [Fact]
+    public async Task SendAsync_LimitsConcurrency_WhenMaxConcurrencySet()
+    {
+        var tracker = new ConcurrencyTrackingChannel(NotificationChannel.WebPush, TimeSpan.FromMilliseconds(50));
+        var sender = new NotificationSender([tracker]);
+        var subscriptions = Enumerable.Range(0, 10).Select(i => Subscription.WebPush($"endpoint{i}", "p256dh", "auth")).ToList();
+
+        var results = await sender.SendAsync(Message, subscriptions, maxConcurrency: 2);
+
+        Assert.Equal(10, results.Count);
+        Assert.True(tracker.MaxObservedConcurrency <= 2, $"Expected max concurrency <= 2 but was {tracker.MaxObservedConcurrency}.");
+    }
+
+    [Fact]
+    public async Task SendAsync_AllowsFullConcurrency_WhenMaxConcurrencyNotSet()
+    {
+        var tracker = new ConcurrencyTrackingChannel(NotificationChannel.WebPush, TimeSpan.FromMilliseconds(50));
+        var sender = new NotificationSender([tracker]);
+        var subscriptions = Enumerable.Range(0, 10).Select(i => Subscription.WebPush($"endpoint{i}", "p256dh", "auth")).ToList();
+
+        await sender.SendAsync(Message, subscriptions);
+
+        Assert.Equal(10, tracker.MaxObservedConcurrency);
+    }
+
+    private sealed class ConcurrencyTrackingChannel(NotificationChannel channel, TimeSpan delay) : Abstractions.INotificationChannel
+    {
+        private int _current;
+        private readonly Lock _lock = new();
+
+        public int MaxObservedConcurrency { get; private set; }
+        public NotificationChannel Channel { get; } = channel;
+        public bool Enabled => true;
+
+        public async Task<ChannelSendResult> SendAsync(Subscription subscription, NotificationMessage message, CancellationToken ct = default)
+        {
+            var current = Interlocked.Increment(ref _current);
+            lock (_lock)
+            {
+                if (current > MaxObservedConcurrency)
+                    MaxObservedConcurrency = current;
+            }
+            await Task.Delay(delay, ct);
+            Interlocked.Decrement(ref _current);
+            return new ChannelSendResult(subscription, SendOutcome.Delivered);
+        }
+    }
+
     private sealed class ThrowingChannel(NotificationChannel channel) : Abstractions.INotificationChannel
     {
         public NotificationChannel Channel { get; } = channel;

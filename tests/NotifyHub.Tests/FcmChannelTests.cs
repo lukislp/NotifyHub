@@ -98,4 +98,47 @@ public class FcmChannelTests
         // Only ONE token request overall (1x token + 2x send = 3 requests), since the token is cached.
         Assert.Equal(3, handler.Requests.Count);
     }
+
+    [Fact]
+    public async Task SendAsync_IncludesImage_WhenSet()
+    {
+        var handler = EnqueueTokenResponse(new FakeHttpMessageHandler());
+        string? capturedBody = null;
+        handler.Enqueue(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var channel = new FcmChannel(CreateOptions(), new HttpClient(handler));
+        var message = new NotificationMessage { Title = "T", Body = "B", ImageUrl = "https://example.com/pic.png" };
+
+        await channel.SendAsync(Subscription.Fcm("devicetoken"), message);
+
+        Assert.Contains("\"image\":\"https://example.com/pic.png\"", capturedBody);
+    }
+
+    [Fact]
+    public async Task SendAsync_OmitsNotification_WhenSilent()
+    {
+        var handler = EnqueueTokenResponse(new FakeHttpMessageHandler());
+        string? capturedBody = null;
+        handler.Enqueue(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var channel = new FcmChannel(CreateOptions(), new HttpClient(handler));
+        var message = new NotificationMessage
+        {
+            Title = "T",
+            Body = "B",
+            Silent = true,
+            Data = new Dictionary<string, string> { ["syncToken"] = "abc" },
+        };
+
+        await channel.SendAsync(Subscription.Fcm("devicetoken"), message);
+
+        Assert.DoesNotContain("\"notification\"", capturedBody);
+        Assert.Contains("\"syncToken\":\"abc\"", capturedBody);
+    }
 }

@@ -29,15 +29,42 @@ public sealed class NotificationSender
     /// <see cref="SendOutcome.Skipped"/> without being sent - a convenience for "send to these
     /// subscriptions, but only via WebPush" without having to filter the list yourself. Omit it
     /// (the default) to send across every channel, unchanged from before this parameter
-    /// existed.</summary>
+    /// existed.
+    ///
+    /// <paramref name="maxConcurrency"/> is an optional cap on how many sends run at once. Left
+    /// unset (the default), every subscription is sent in full parallel via
+    /// <see cref="Task.WhenAll{TResult}(IEnumerable{Task{TResult}})"/>, unchanged from before this
+    /// parameter existed - fine for small/medium subscriber counts. For a large broadcast (e.g.
+    /// tens of thousands of subscriptions), firing every send at once can exhaust the local
+    /// connection pool and trip provider-side rate limits (APNs/FCM throttle aggressively) -
+    /// set a cap to bound how many HTTP calls are in flight simultaneously.</summary>
     public async Task<IReadOnlyList<ChannelSendResult>> SendAsync(
         NotificationMessage message,
         IEnumerable<Subscription> subscriptions,
         IReadOnlyCollection<NotificationChannel>? channels = null,
+        int? maxConcurrency = null,
         CancellationToken ct = default)
     {
-        var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, channels, ct));
-        return await Task.WhenAll(tasks);
+        if (maxConcurrency is null)
+        {
+            var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, channels, ct));
+            return await Task.WhenAll(tasks);
+        }
+
+        using var throttle = new SemaphoreSlim(maxConcurrency.Value);
+        var throttledTasks = subscriptions.Select(async subscription =>
+        {
+            await throttle.WaitAsync(ct);
+            try
+            {
+                return await SendOneAsync(subscription, message, channels, ct);
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+        return await Task.WhenAll(throttledTasks);
     }
 
     private async Task<ChannelSendResult> SendOneAsync(

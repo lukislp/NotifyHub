@@ -84,7 +84,17 @@ public sealed class WebhookChannel(HttpClient? httpClient = null, ILogger<Webhoo
     {
         WebhookPayloadFormat.Slack => JsonSerializer.Serialize(new { text = FormatText(message, "*") }),
         WebhookPayloadFormat.Discord => JsonSerializer.Serialize(new { content = FormatText(message, "**") }),
-        _ => JsonSerializer.Serialize(new { title = message.Title, body = message.Body, url = message.Url, data = message.Data }),
+        _ => JsonSerializer.Serialize(new
+        {
+            title = message.Title,
+            body = message.Body,
+            url = message.Url,
+            data = message.Data,
+            image = message.ImageUrl,
+            badge = message.Badge,
+            sound = message.Sound,
+            silent = message.Silent,
+        }),
     };
 
     /// <summary>Combines title/body/url into one message string with the given emphasis markup

@@ -48,14 +48,31 @@ public sealed class ApnsChannel : INotificationChannel
         var options = _options!;
         var endpoint = options.Endpoint ?? (options.UseSandbox ? SandboxEndpoint : ProductionEndpoint);
 
-        var apsJson = JsonSerializer.Serialize(new
+        var aps = new Dictionary<string, object>();
+        if (message.Silent)
         {
-            aps = new
-            {
-                alert = new { title = message.Title, body = message.Body },
-                sound = "default",
-            },
-        });
+            // Background/silent push per Apple's spec: content-available only, no alert/sound.
+            aps["content-available"] = 1;
+        }
+        else
+        {
+            aps["alert"] = new { title = message.Title, body = message.Body };
+            aps["sound"] = message.Sound ?? "default";
+        }
+        if (message.Badge is { } badge)
+            aps["badge"] = badge;
+
+        var payload = new Dictionary<string, object>{ ["aps"] = aps };
+        if (message.Data is not null)
+        {
+            // Apple convention: custom data lives as top-level keys alongside "aps", not nested.
+            foreach (var (key, value) in message.Data)
+                payload[key] = value;
+        }
+        if (message.Url is not null)
+            payload["url"] = message.Url;
+
+        var apsJson = JsonSerializer.Serialize(payload);
 
         try
         {
@@ -67,8 +84,9 @@ public sealed class ApnsChannel : INotificationChannel
             };
             request.Headers.TryAddWithoutValidation("authorization", $"bearer {GetJwt(options)}");
             request.Headers.TryAddWithoutValidation("apns-topic", options.BundleId);
-            request.Headers.TryAddWithoutValidation("apns-push-type", "alert");
-            request.Headers.TryAddWithoutValidation("apns-priority", "10");
+            request.Headers.TryAddWithoutValidation("apns-push-type", message.Silent ? "background" : "alert");
+            // Apple requires priority 5 for background/content-available pushes, 10 (immediate) for alerts.
+            request.Headers.TryAddWithoutValidation("apns-priority", message.Silent ? "5" : "10");
 
             using var response = await _http.SendAsync(request, ct);
             if (response.IsSuccessStatusCode)

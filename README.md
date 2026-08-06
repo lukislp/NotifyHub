@@ -152,13 +152,23 @@ needs no configuration and is always active.
 | Type | Purpose |
 |---|---|
 | `Subscription` | One delivery target for exactly one channel (a browser's push endpoint, a device token, a webhook URL, or an email address). Created via `Subscription.WebPush(...)`, `.Apns(...)`, `.Fcm(...)`, `.Webhook(...)`, or `.Email(...)`. |
-| `NotificationMessage` | Channel-independent content: `Title`, `Body`, optional `Url` and `Data` dictionary. |
-| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions, channels?)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. Which users/subscriptions are targeted is entirely up to what you pass in; the optional `channels` allow-list restricts delivery to specific channel types (e.g. WebPush only) without having to filter the subscription list yourself. |
+| `NotificationMessage` | Channel-independent content: `Title`, `Body`, optional `Url`, `Data` dictionary, `Badge` (APNs badge count), `Sound` (APNs custom sound), `Silent` (background/data-only push - APNs/FCM/WebPush), `ImageUrl` (FCM/WebPush/Webhook). Every field beyond `Title`/`Body` is optional and only used by the channels that understand it. |
+| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions, channels?, maxConcurrency?)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. Which users/subscriptions are targeted is entirely up to what you pass in; the optional `channels` allow-list restricts delivery to specific channel types (e.g. WebPush only) without having to filter the subscription list yourself; the optional `maxConcurrency` caps how many sends run at once (useful for very large broadcasts - see below). |
 | `ChannelSendResult` / `SendOutcome` | Per-subscription outcome: `Delivered`, `Expired`, `Failed`, or `Skipped`. See [Handling send results](#handling-send-results). |
 
 NotifyHub never persists subscriptions itself - the host app owns that list completely and passes
 the currently relevant subset into `SendAsync` on every call. The only thing NotifyHub persists on
 its own is the Web Push VAPID key pair (see [Custom storage](#custom-storage)).
+
+**Large broadcasts:** `SendAsync` fans out with unbounded parallelism by default (unchanged,
+zero-config behavior) - fine for small/medium subscriber counts. Sending to tens of thousands of
+subscriptions at once can exhaust the local HTTP connection pool and trip provider-side rate
+limits (APNs/FCM throttle aggressively), which would show up as spurious `SendOutcome.Failed`
+results. Pass `maxConcurrency` to cap how many sends are in flight simultaneously:
+
+```csharp
+await sender.SendAsync(message, allSubscriptions, maxConcurrency: 200);
+```
 
 ## Channel reference
 
@@ -196,6 +206,11 @@ Subscription.Apns(deviceToken);
 Without `ApnsOptions`, the channel is a silent no-op. Expired/uninstalled tokens are reported as
 `SendOutcome.Expired` (HTTP 410, `BadDeviceToken`, `DeviceTokenNotForTopic`).
 
+`NotificationMessage.Data`/`Url` are sent as top-level keys alongside `"aps"` (Apple's convention
+for custom payload data), `Badge` maps to `aps.badge`, `Sound` overrides the default notification
+sound, and `Silent: true` sends a background push (`aps.content-available: 1`, no `alert`/`sound`,
+`apns-push-type: background`, `apns-priority: 5`) for silent data sync instead of a visible alert.
+
 ### Firebase Cloud Messaging (FCM)
 
 Android (and any platform reachable through Firebase) push via the FCM HTTP v1 API, authenticated
@@ -213,6 +228,10 @@ Subscription.Fcm(deviceToken);
 Without `FcmOptions`, the channel is a silent no-op. `UNREGISTERED`/`NOT_FOUND` responses are
 reported as `SendOutcome.Expired`.
 
+`NotificationMessage.ImageUrl` maps to `notification.image`. `Silent: true` sends a data-only
+message (the `notification` key is omitted entirely - only `Data` is delivered), for background
+sync without a visible notification. `Badge`/`Sound` are APNs-specific and not applicable here.
+
 ### Webhook
 
 Always active, no configuration required. POSTs the notification to any URL - useful for Slack,
@@ -222,8 +241,8 @@ Discord, Home Assistant, n8n, or your own service.
 Subscription.Webhook("https://your-service.example.com/hooks/notify");
 ```
 
-By default the body is NotifyHub's own generic shape (`{ title, body, url, data }`), which Home
-Assistant/n8n/your own endpoints can read directly. **Slack and Discord expect their own shape and
+By default the body is NotifyHub's own generic shape (`{ title, body, url, data, image, badge, sound, silent }`),
+which Home Assistant/n8n/your own endpoints can read directly. **Slack and Discord expect their own shape and
 reject the generic one** - pass `format` to match the target:
 
 ```csharp
@@ -325,7 +344,7 @@ app.MapNotifyHubEndpoints(); // mounted at /notifyhub by default
 | `POST` | `/notifyhub/subscriptions` | `{ userId, channel, ... }` | Registers or updates a subscription for a user. `channel` is the numeric `NotificationChannel` value (0=WebPush, 1=Apns, 2=Fcm, 3=Webhook, 4=Email); the remaining fields depend on the channel (`endpoint`/`p256dh`/`auth`, `deviceToken`, `url`, or `emailAddress`). |
 | `DELETE` | `/notifyhub/subscriptions/{id}` | - | Removes a subscription by its server-assigned ID. |
 | `GET` | `/notifyhub/subscriptions?userId=...` | - | Lists a user's subscriptions (ID, channel, creation time). |
-| `POST` | `/notifyhub/notifications/send` | `{ userId?, userIds?, broadcast, title, body, url?, data?, channels? }` | Sends to one user's subscriptions, a specific list of users' (`userIds`), or to everyone if `broadcast` is true. Optional `channels` (e.g. `[0]` for WebPush only) restricts delivery to just those channel types - omit it to send across every channel the target(s) are subscribed to, as before. Automatically deletes subscriptions that come back `Expired`. |
+| `POST` | `/notifyhub/notifications/send` | `{ userId?, userIds?, broadcast, title, body, url?, data?, channels?, badge?, sound?, silent?, imageUrl?, maxConcurrency? }` | Sends to one user's subscriptions, a specific list of users' (`userIds`), or to everyone if `broadcast` is true. Optional `channels` (e.g. `[0]` for WebPush only) restricts delivery to just those channel types - omit it to send across every channel the target(s) are subscribed to, as before. `badge`/`sound`/`silent`/`imageUrl` map to the matching `NotificationMessage` fields (see [Core concepts](#core-concepts)); `maxConcurrency` caps parallel sends for large broadcasts. Automatically deletes subscriptions that come back `Expired`. |
 
 Change the route prefix with `app.MapNotifyHubEndpoints("/my-prefix")`.
 

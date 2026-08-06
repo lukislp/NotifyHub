@@ -49,15 +49,21 @@ public sealed class FcmChannel : INotificationChannel
             throw new ArgumentException("FCM subscription requires DeviceToken.", nameof(subscription));
 
         var options = _options!;
-        var body = new
+        // A silent/data-only message omits "notification" entirely per FCM's convention - the
+        // app receives only "data" and decides itself whether/how to surface anything.
+        object? notification = message.Silent
+            ? null
+            : new { title = message.Title, body = message.Body, image = message.ImageUrl };
+
+        var messageFields = new Dictionary<string, object?>
         {
-            message = new
-            {
-                token = subscription.DeviceToken,
-                notification = new { title = message.Title, body = message.Body },
-                data = message.Data,
-            },
+            ["token"] = subscription.DeviceToken,
+            ["data"] = message.Data,
         };
+        if (notification is not null)
+            messageFields["notification"] = notification;
+
+        var body = new { message = messageFields };
 
         try
         {
