@@ -153,7 +153,7 @@ needs no configuration and is always active.
 |---|---|
 | `Subscription` | One delivery target for exactly one channel (a browser's push endpoint, a device token, a webhook URL, or an email address). Created via `Subscription.WebPush(...)`, `.Apns(...)`, `.Fcm(...)`, `.Webhook(...)`, or `.Email(...)`. |
 | `NotificationMessage` | Channel-independent content: `Title`, `Body`, optional `Url` and `Data` dictionary. |
-| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. |
+| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions, channels?)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. Which users/subscriptions are targeted is entirely up to what you pass in; the optional `channels` allow-list restricts delivery to specific channel types (e.g. WebPush only) without having to filter the subscription list yourself. |
 | `ChannelSendResult` / `SendOutcome` | Per-subscription outcome: `Delivered`, `Expired`, `Failed`, or `Skipped`. See [Handling send results](#handling-send-results). |
 
 NotifyHub never persists subscriptions itself - the host app owns that list completely and passes
@@ -325,7 +325,7 @@ app.MapNotifyHubEndpoints(); // mounted at /notifyhub by default
 | `POST` | `/notifyhub/subscriptions` | `{ userId, channel, ... }` | Registers or updates a subscription for a user. `channel` is the numeric `NotificationChannel` value (0=WebPush, 1=Apns, 2=Fcm, 3=Webhook, 4=Email); the remaining fields depend on the channel (`endpoint`/`p256dh`/`auth`, `deviceToken`, `url`, or `emailAddress`). |
 | `DELETE` | `/notifyhub/subscriptions/{id}` | - | Removes a subscription by its server-assigned ID. |
 | `GET` | `/notifyhub/subscriptions?userId=...` | - | Lists a user's subscriptions (ID, channel, creation time). |
-| `POST` | `/notifyhub/notifications/send` | `{ userId, broadcast, title, body, url?, data? }` | Sends to one user's subscriptions, or to everyone if `broadcast` is true. Automatically deletes subscriptions that come back `Expired`. |
+| `POST` | `/notifyhub/notifications/send` | `{ userId?, userIds?, broadcast, title, body, url?, data?, channels? }` | Sends to one user's subscriptions, a specific list of users' (`userIds`), or to everyone if `broadcast` is true. Optional `channels` (e.g. `[0]` for WebPush only) restricts delivery to just those channel types - omit it to send across every channel the target(s) are subscribed to, as before. Automatically deletes subscriptions that come back `Expired`. |
 
 Change the route prefix with `app.MapNotifyHubEndpoints("/my-prefix")`.
 
