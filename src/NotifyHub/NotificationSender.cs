@@ -18,15 +18,34 @@ public sealed class NotificationSender
         _channels = channels.ToDictionary(c => c.Channel);
     }
 
+    /// <summary>Sends <paramref name="message"/> to every one of <paramref name="subscriptions"/>,
+    /// in parallel, and returns exactly one <see cref="ChannelSendResult"/> per subscription (same
+    /// order as the input). Which users/subscriptions are included is entirely up to the caller -
+    /// pass only the subscriptions you want targeted (e.g. a single user's, or a hand-picked
+    /// subset for a custom targeting rule).
+    ///
+    /// <paramref name="channels"/> is an optional allow-list: when set, subscriptions whose
+    /// <see cref="NotificationChannel"/> isn't in the list are reported as
+    /// <see cref="SendOutcome.Skipped"/> without being sent - a convenience for "send to these
+    /// subscriptions, but only via WebPush" without having to filter the list yourself. Omit it
+    /// (the default) to send across every channel, unchanged from before this parameter
+    /// existed.</summary>
     public async Task<IReadOnlyList<ChannelSendResult>> SendAsync(
-        NotificationMessage message, IEnumerable<Subscription> subscriptions, CancellationToken ct = default)
+        NotificationMessage message,
+        IEnumerable<Subscription> subscriptions,
+        IReadOnlyCollection<NotificationChannel>? channels = null,
+        CancellationToken ct = default)
     {
-        var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, ct));
+        var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, channels, ct));
         return await Task.WhenAll(tasks);
     }
 
-    private async Task<ChannelSendResult> SendOneAsync(Subscription subscription, NotificationMessage message, CancellationToken ct)
+    private async Task<ChannelSendResult> SendOneAsync(
+        Subscription subscription, NotificationMessage message, IReadOnlyCollection<NotificationChannel>? channels, CancellationToken ct)
     {
+        if (channels is not null && !channels.Contains(subscription.Channel))
+            return new ChannelSendResult(subscription, SendOutcome.Skipped, "Channel excluded by caller-specified channel filter.");
+
         if (!_channels.TryGetValue(subscription.Channel, out var channel))
             return new ChannelSendResult(subscription, SendOutcome.Skipped, $"No channel registered for {subscription.Channel}.");
 

@@ -83,6 +83,60 @@ public class NotificationSenderTests
         Assert.Equal(SendOutcome.Failed, results[0].Outcome);
     }
 
+    [Fact]
+    public async Task SendAsync_SendsToEveryChannel_WhenNoChannelFilterGiven()
+    {
+        var webPush = new FakeChannel(NotificationChannel.WebPush);
+        var apns = new FakeChannel(NotificationChannel.Apns);
+        var sender = new NotificationSender([webPush, apns]);
+
+        var subscriptions = new[]
+        {
+            Subscription.WebPush("endpoint", "p256dh", "auth"),
+            Subscription.Apns("token"),
+        };
+
+        var results = await sender.SendAsync(Message, subscriptions);
+
+        Assert.Equal(1, webPush.CallCount);
+        Assert.Equal(1, apns.CallCount);
+        Assert.All(results, r => Assert.Equal(SendOutcome.Delivered, r.Outcome));
+    }
+
+    [Fact]
+    public async Task SendAsync_RestrictsDelivery_ToChannelAllowList()
+    {
+        var webPush = new FakeChannel(NotificationChannel.WebPush);
+        var apns = new FakeChannel(NotificationChannel.Apns);
+        var sender = new NotificationSender([webPush, apns]);
+
+        var subscriptions = new[]
+        {
+            Subscription.WebPush("endpoint", "p256dh", "auth", id: "browser-1"),
+            Subscription.Apns("token", id: "iphone-1"),
+        };
+
+        var results = await sender.SendAsync(Message, subscriptions, channels: [NotificationChannel.WebPush]);
+
+        Assert.Equal(1, webPush.CallCount);
+        Assert.Equal(0, apns.CallCount); // excluded by the filter, never even called
+        Assert.Equal(2, results.Count); // still one result per subscription
+        Assert.Equal(SendOutcome.Delivered, results.Single(r => r.Subscription.Id == "browser-1").Outcome);
+        Assert.Equal(SendOutcome.Skipped, results.Single(r => r.Subscription.Id == "iphone-1").Outcome);
+    }
+
+    [Fact]
+    public async Task SendAsync_EmptyChannelFilter_SkipsEverything()
+    {
+        var webPush = new FakeChannel(NotificationChannel.WebPush);
+        var sender = new NotificationSender([webPush]);
+
+        var results = await sender.SendAsync(Message, [Subscription.WebPush("endpoint", "p256dh", "auth")], channels: []);
+
+        Assert.Equal(0, webPush.CallCount);
+        Assert.Equal(SendOutcome.Skipped, results[0].Outcome);
+    }
+
     private sealed class ThrowingChannel(NotificationChannel channel) : Abstractions.INotificationChannel
     {
         public NotificationChannel Channel { get; } = channel;
