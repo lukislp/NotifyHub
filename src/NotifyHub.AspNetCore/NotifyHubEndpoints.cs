@@ -25,7 +25,12 @@ public sealed record SendRequest(
     string Body,
     string? Url = null,
     Dictionary<string, string>? Data = null,
-    NotificationChannel[]? Channels = null);
+    NotificationChannel[]? Channels = null,
+    int? Badge = null,
+    string? Sound = null,
+    bool Silent = false,
+    string? ImageUrl = null,
+    int? MaxConcurrency = null);
 
 public sealed record SendResultDto(string? SubscriptionId, NotificationChannel Channel, string Outcome, string? Error);
 
@@ -112,8 +117,18 @@ public static class NotifyHubEndpoints
             if (targets.Count == 0)
                 return Results.Ok(Array.Empty<SendResultDto>());
 
-            var message = new NotificationMessage { Title = req.Title, Body = req.Body, Url = req.Url, Data = req.Data };
-            var results = await sender.SendAsync(message, targets.Select(t => t.Subscription), req.Channels);
+            var message = new NotificationMessage
+            {
+                Title = req.Title,
+                Body = req.Body,
+                Url = req.Url,
+                Data = req.Data,
+                Badge = req.Badge,
+                Sound = req.Sound,
+                Silent = req.Silent,
+                ImageUrl = req.ImageUrl,
+            };
+            var results = await sender.SendAsync(message, targets.Select(t => t.Subscription), req.Channels, req.MaxConcurrency);
 
             // Automatically clean up expired subscriptions (pattern: HTTP 410/BadDeviceToken/UNREGISTERED).
             foreach (var (target, result) in targets.Zip(results))

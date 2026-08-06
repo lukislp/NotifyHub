@@ -45,6 +45,8 @@ public sealed class WebPushChannel(VapidKeyProvider vapidKeyProvider, HttpClient
                 body = message.Body,
                 url = message.Url,
                 data = message.Data,
+                image = message.ImageUrl,
+                silent = message.Silent,
             });
             var body = WebPushCrypto.EncryptPayload(payload, subscription.P256dh, subscription.Auth);
 

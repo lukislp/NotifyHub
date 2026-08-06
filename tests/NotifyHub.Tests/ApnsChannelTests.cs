@@ -124,4 +124,85 @@ public class ApnsChannelTests
         }
         finally { File.Delete(keyPath); }
     }
+
+    [Fact]
+    public async Task SendAsync_IncludesDataAndUrl_AsTopLevelKeys()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            string? capturedBody = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+            var message = new NotificationMessage
+            {
+                Title = "T",
+                Body = "B",
+                Url = "https://example.com/deep-link",
+                Data = new Dictionary<string, string> { ["entityId"] = "42" },
+            };
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"), message);
+
+            // Regression test: Data/Url used to be silently dropped for APNs - Apple's convention
+            // is custom keys as top-level siblings of "aps", not nested inside it.
+            Assert.Contains("\"entityId\":\"42\"", capturedBody);
+            Assert.Contains("\"url\":\"https://example.com/deep-link\"", capturedBody);
+        }
+        finally { File.Delete(keyPath); }
+    }
+
+    [Fact]
+    public async Task SendAsync_IncludesBadgeAndCustomSound_WhenSet()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            string? capturedBody = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+            var message = new NotificationMessage { Title = "T", Body = "B", Badge = 7, Sound = "chime.caf" };
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"), message);
+
+            Assert.Contains("\"badge\":7", capturedBody);
+            Assert.Contains("\"sound\":\"chime.caf\"", capturedBody);
+        }
+        finally { File.Delete(keyPath); }
+    }
+
+    [Fact]
+    public async Task SendAsync_SendsBackgroundPush_WhenSilent()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            string? capturedBody = null;
+            HttpRequestMessage? capturedRequest = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedRequest = req;
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"), new NotificationMessage { Title = "T", Body = "B", Silent = true });
+
+            Assert.Contains("\"content-available\":1", capturedBody);
+            Assert.DoesNotContain("\"alert\"", capturedBody);
+            Assert.DoesNotContain("\"sound\"", capturedBody);
+            Assert.Equal("background", capturedRequest!.Headers.GetValues("apns-push-type").Single());
+            Assert.Equal("5", capturedRequest.Headers.GetValues("apns-priority").Single());
+        }
+        finally { File.Delete(keyPath); }
+    }
 }
