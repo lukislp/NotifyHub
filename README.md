@@ -1,6 +1,8 @@
 # NotifyHub
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI/CD](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml)
+[![Release](https://img.shields.io/github/v/release/lukislp/NotifyHub)](https://github.com/lukislp/NotifyHub/releases)
+[![License: MIT](https://img.shields.io/github/license/lukislp/NotifyHub)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 A universal .NET library for push notifications: browser (Web Push/VAPID), Apple (APNs),
@@ -60,8 +62,17 @@ simply skipped (`SendOutcome.Skipped`) - no exceptions, no special-casing requir
 
 ## Installation
 
-**Not yet published to NuGet.org.** Until the first release goes out, reference the projects
-directly from a checkout of this repo:
+**Not yet published to NuGet.org**, but every [release](https://github.com/lukislp/NotifyHub/releases)
+now has ready-built `.nupkg`/`.snupkg` packages attached as downloadable assets (built by the CI/CD
+pipeline, packed at the release's exact version). Download the ones you need from the latest
+release and add them from a local folder:
+
+```
+dotnet add package NotifyHub --source ./path-to-downloaded-nupkgs
+dotnet add package NotifyHub.AspNetCore --source ./path-to-downloaded-nupkgs
+```
+
+Or reference the projects directly from a checkout of this repo:
 
 ```xml
 <ItemGroup>
@@ -73,7 +84,7 @@ directly from a checkout of this repo:
 (`NotifyHub.AspNetCore` is optional - only needed if you want the ready-made subscribe/unsubscribe/send
 HTTP endpoints instead of calling `NotificationSender` in-process.)
 
-Once published, the packages will be installable the normal way:
+Once published to NuGet.org, the packages will be installable the normal way:
 
 ```
 dotnet add package NotifyHub
