@@ -44,6 +44,8 @@ public sealed class ApnsChannel : INotificationChannel
             return new ChannelSendResult(subscription, SendOutcome.Skipped);
         if (subscription.DeviceToken is null)
             throw new ArgumentException("APNs subscription requires DeviceToken.", nameof(subscription));
+        if (message.TimeToLive is { Ticks: < 0 })
+            throw new ArgumentException("TimeToLive must not be negative.", nameof(message));
 
         var options = _options!;
         var endpoint = options.Endpoint ?? (options.UseSandbox ? SandboxEndpoint : ProductionEndpoint);

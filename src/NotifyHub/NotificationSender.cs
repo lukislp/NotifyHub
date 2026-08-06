@@ -42,8 +42,7 @@ public sealed class NotificationSender
             return await Task.WhenAll(tasks);
         }
 
-        if (maxConcurrency < 1)
-            throw new ArgumentOutOfRangeException(nameof(options), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
+        ValidateMaxConcurrency(maxConcurrency);
 
         using var throttle = new SemaphoreSlim(maxConcurrency);
         var throttledTasks = subscriptions.Select(async subscription =>
@@ -95,8 +94,7 @@ public sealed class NotificationSender
             yield break;
         }
 
-        if (maxConcurrency < 1)
-            throw new ArgumentOutOfRangeException(nameof(options), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
+        ValidateMaxConcurrency(maxConcurrency);
 
         // Bounded producer/consumer: keep at most MaxConcurrency sends in flight and start the
         // next one only as a previous one completes - subscriptions is enumerated lazily, so
@@ -122,6 +120,12 @@ public sealed class NotificationSender
             inFlight.Remove(completed);
             yield return await completed;
         }
+    }
+
+    private static void ValidateMaxConcurrency(int maxConcurrency)
+    {
+        if (maxConcurrency < 1)
+            throw new ArgumentOutOfRangeException(nameof(SendOptions.MaxConcurrency), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
     }
 
     private async Task<ChannelSendResult> SendOneAsync(
