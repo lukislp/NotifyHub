@@ -73,6 +73,26 @@ public class WebhookChannelTests
     }
 
     [Fact]
+    public async Task SendAsync_UsesTeamsFormat_WhenConfigured()
+    {
+        string? capturedBody = null;
+        var handler = new FakeHttpMessageHandler().Enqueue(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var channel = new WebhookChannel(new HttpClient(handler));
+        var subscription = Subscription.Webhook("https://outlook.office.com/webhook/x", format: WebhookPayloadFormat.Teams);
+
+        var result = await channel.SendAsync(subscription, new NotificationMessage { Title = "Alert", Body = "Something happened" });
+
+        Assert.Equal(SendOutcome.Delivered, result.Outcome);
+        Assert.Contains("\"text\"", capturedBody);
+        Assert.Contains("**Alert**", capturedBody);
+        Assert.DoesNotContain("\"title\"", capturedBody);
+    }
+
+    [Fact]
     public async Task SendAsync_UsesSlackFormat_WhenConfigured()
     {
         string? capturedBody = null;

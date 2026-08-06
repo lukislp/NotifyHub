@@ -36,10 +36,18 @@ public sealed class EmailChannel(SmtpOptions? options, ILogger<EmailChannel>? lo
             mail.From.Add(new MailboxAddress(smtp.FromName ?? string.Empty, smtp.FromAddress));
             mail.To.Add(MailboxAddress.Parse(subscription.EmailAddress));
             mail.Subject = message.Title;
-            mail.Body = new TextPart("plain")
+
+            var textBody = message.Url is null ? message.Body : $"{message.Body}\n\n{message.Url}";
+            if (message.HtmlBody is not null)
             {
-                Text = message.Url is null ? message.Body : $"{message.Body}\n\n{message.Url}",
-            };
+                // multipart/alternative: HTML for capable clients, the plain-text body as fallback.
+                var builder = new BodyBuilder { HtmlBody = message.HtmlBody, TextBody = textBody };
+                mail.Body = builder.ToMessageBody();
+            }
+            else
+            {
+                mail.Body = new TextPart("plain") { Text = textBody };
+            }
 
             using var client = new SmtpClient();
             var secureOptions = smtp.UseSsl ? SecureSocketOptions.Auto : SecureSocketOptions.None;

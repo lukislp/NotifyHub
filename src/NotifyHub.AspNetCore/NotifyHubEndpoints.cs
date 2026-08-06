@@ -30,7 +30,11 @@ public sealed record SendRequest(
     string? Sound = null,
     bool Silent = false,
     string? ImageUrl = null,
-    int? MaxConcurrency = null);
+    int? MaxConcurrency = null,
+    int? TimeToLiveSeconds = null,
+    NotificationPriority Priority = NotificationPriority.Normal,
+    string? CollapseId = null,
+    string? HtmlBody = null);
 
 public sealed record SendResultDto(string? SubscriptionId, NotificationChannel Channel, string Outcome, string? Error);
 
@@ -127,6 +131,10 @@ public static class NotifyHubEndpoints
                 Sound = req.Sound,
                 Silent = req.Silent,
                 ImageUrl = req.ImageUrl,
+                TimeToLive = req.TimeToLiveSeconds is { } ttl ? TimeSpan.FromSeconds(ttl) : null,
+                Priority = req.Priority,
+                CollapseId = req.CollapseId,
+                HtmlBody = req.HtmlBody,
             };
             var results = await sender.SendAsync(message, targets.Select(t => t.Subscription), req.Channels, req.MaxConcurrency);
 

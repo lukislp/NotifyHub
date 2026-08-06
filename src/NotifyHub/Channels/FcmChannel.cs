@@ -63,6 +63,22 @@ public sealed class FcmChannel : INotificationChannel
         if (notification is not null)
             messageFields["notification"] = notification;
 
+        // Android-specific delivery options - only included when the caller actually set
+        // something, so the default request body stays byte-for-byte as before.
+        var android = new Dictionary<string, object?>();
+        if (message.TimeToLive is { } ttl)
+            android["ttl"] = $"{(long)ttl.TotalSeconds}s"; // FCM v1 expects a "<seconds>s" string
+        if (message.Priority != NotificationPriority.Normal)
+            android["priority"] = message.Priority == NotificationPriority.High ? "HIGH" : "NORMAL";
+        if (message.CollapseId is not null)
+        {
+            android["collapse_key"] = message.CollapseId;
+            if (!message.Silent)
+                android["notification"] = new { tag = message.CollapseId };
+        }
+        if (android.Count > 0)
+            messageFields["android"] = android;
+
         var body = new { message = messageFields };
 
         try

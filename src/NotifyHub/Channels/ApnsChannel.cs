@@ -73,6 +73,10 @@ public sealed class ApnsChannel : INotificationChannel
             payload["url"] = message.Url;
 
         var apsJson = JsonSerializer.Serialize(payload);
+        // Apple rejects payloads over 4 KB with PayloadTooLarge - warn upfront so the cause is
+        // obvious locally instead of only surfacing as a provider-side 413.
+        if (Encoding.UTF8.GetByteCount(apsJson) > 4096)
+            _logger?.LogWarning("APNs payload exceeds Apple's 4 KB limit ({Size} bytes) and will be rejected - reduce Data/alert content.", Encoding.UTF8.GetByteCount(apsJson));
 
         try
         {
@@ -85,8 +89,14 @@ public sealed class ApnsChannel : INotificationChannel
             request.Headers.TryAddWithoutValidation("authorization", $"bearer {GetJwt(options)}");
             request.Headers.TryAddWithoutValidation("apns-topic", options.BundleId);
             request.Headers.TryAddWithoutValidation("apns-push-type", message.Silent ? "background" : "alert");
-            // Apple requires priority 5 for background/content-available pushes, 10 (immediate) for alerts.
-            request.Headers.TryAddWithoutValidation("apns-priority", message.Silent ? "5" : "10");
+            // Apple requires priority 5 for background/content-available pushes; alerts are 10
+            // (immediate) unless the caller opts into battery-friendly delivery via Priority.Low.
+            var priority = message.Silent || message.Priority == NotificationPriority.Low ? "5" : "10";
+            request.Headers.TryAddWithoutValidation("apns-priority", priority);
+            if (message.TimeToLive is { } ttl)
+                request.Headers.TryAddWithoutValidation("apns-expiration", DateTimeOffset.UtcNow.Add(ttl).ToUnixTimeSeconds().ToString());
+            if (message.CollapseId is not null)
+                request.Headers.TryAddWithoutValidation("apns-collapse-id", message.CollapseId);
 
             using var response = await _http.SendAsync(request, ct);
             if (response.IsSuccessStatusCode)

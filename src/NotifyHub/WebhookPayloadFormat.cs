@@ -21,4 +21,9 @@ public enum WebhookPayloadFormat
     /// <summary>Discord webhook shape: <c>{ content }</c> (title/body/url combined into one
     /// message string).</summary>
     Discord,
+
+    /// <summary>Microsoft Teams incoming webhook shape: <c>{ text }</c> with Markdown
+    /// (title/body/url combined into one message string, paragraphs separated by blank
+    /// lines).</summary>
+    Teams,
 }

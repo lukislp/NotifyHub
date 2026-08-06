@@ -141,4 +141,49 @@ public class FcmChannelTests
         Assert.DoesNotContain("\"notification\"", capturedBody);
         Assert.Contains("\"syncToken\":\"abc\"", capturedBody);
     }
+
+    [Fact]
+    public async Task SendAsync_OmitsAndroidConfig_ByDefault()
+    {
+        var handler = EnqueueTokenResponse(new FakeHttpMessageHandler());
+        string? capturedBody = null;
+        handler.Enqueue(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var channel = new FcmChannel(CreateOptions(), new HttpClient(handler));
+
+        await channel.SendAsync(Subscription.Fcm("devicetoken"), new NotificationMessage { Title = "T", Body = "B" });
+
+        Assert.DoesNotContain("\"android\"", capturedBody);
+    }
+
+    [Fact]
+    public async Task SendAsync_IncludesAndroidTtlPriorityAndCollapse_WhenConfigured()
+    {
+        var handler = EnqueueTokenResponse(new FakeHttpMessageHandler());
+        string? capturedBody = null;
+        handler.Enqueue(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var channel = new FcmChannel(CreateOptions(), new HttpClient(handler));
+        var message = new NotificationMessage
+        {
+            Title = "T",
+            Body = "B",
+            TimeToLive = TimeSpan.FromHours(1),
+            Priority = NotificationPriority.High,
+            CollapseId = "score-42",
+        };
+
+        await channel.SendAsync(Subscription.Fcm("devicetoken"), message);
+
+        Assert.Contains("\"ttl\":\"3600s\"", capturedBody);
+        Assert.Contains("\"priority\":\"HIGH\"", capturedBody);
+        Assert.Contains("\"collapse_key\":\"score-42\"", capturedBody);
+        Assert.Contains("\"tag\":\"score-42\"", capturedBody);
+    }
 }

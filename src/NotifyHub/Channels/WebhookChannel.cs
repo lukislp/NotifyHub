@@ -84,6 +84,8 @@ public sealed class WebhookChannel(HttpClient? httpClient = null, ILogger<Webhoo
     {
         WebhookPayloadFormat.Slack => JsonSerializer.Serialize(new { text = FormatText(message, "*") }),
         WebhookPayloadFormat.Discord => JsonSerializer.Serialize(new { content = FormatText(message, "**") }),
+        // Teams renders Markdown but needs blank lines between paragraphs.
+        WebhookPayloadFormat.Teams => JsonSerializer.Serialize(new { text = FormatText(message, "**", "\n\n") }),
         _ => JsonSerializer.Serialize(new
         {
             title = message.Title,
@@ -94,16 +96,18 @@ public sealed class WebhookChannel(HttpClient? httpClient = null, ILogger<Webhoo
             badge = message.Badge,
             sound = message.Sound,
             silent = message.Silent,
+            collapseId = message.CollapseId,
+            priority = message.Priority.ToString(),
         }),
     };
 
     /// <summary>Combines title/body/url into one message string with the given emphasis markup
-    /// (Slack: <c>*bold*</c>, Discord: <c>**bold**</c>) around the title, since neither service's
-    /// simple webhook shape has separate title/body fields.</summary>
-    private static string FormatText(NotificationMessage message, string emphasis)
+    /// (Slack: <c>*bold*</c>, Discord/Teams: <c>**bold**</c>) around the title, since none of
+    /// these services' simple webhook shapes have separate title/body fields.</summary>
+    private static string FormatText(NotificationMessage message, string emphasis, string separator = "\n")
     {
-        var text = $"{emphasis}{message.Title}{emphasis}\n{message.Body}";
-        return message.Url is null ? text : $"{text}\n{message.Url}";
+        var text = $"{emphasis}{message.Title}{emphasis}{separator}{message.Body}";
+        return message.Url is null ? text : $"{text}{separator}{message.Url}";
     }
 }
 

@@ -67,6 +67,41 @@ public sealed class NotificationSender
         return await Task.WhenAll(throttledTasks);
     }
 
+    /// <summary>Streaming variant of <see cref="SendAsync"/>: yields each
+    /// <see cref="ChannelSendResult"/> as soon as that individual send completes, instead of
+    /// waiting for the whole batch. Useful for large broadcasts - progress can be reported and
+    /// expired subscriptions cleaned up while the remaining sends are still running. Results
+    /// arrive in <b>completion order</b>, not input order; use
+    /// <see cref="ChannelSendResult.Subscription"/> (e.g. its <c>Id</c>) to correlate.
+    /// <paramref name="channels"/> and <paramref name="maxConcurrency"/> behave exactly as on
+    /// <see cref="SendAsync"/>.</summary>
+    public async IAsyncEnumerable<ChannelSendResult> SendStreamAsync(
+        NotificationMessage message,
+        IEnumerable<Subscription> subscriptions,
+        IReadOnlyCollection<NotificationChannel>? channels = null,
+        int? maxConcurrency = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        using var throttle = maxConcurrency is { } cap ? new SemaphoreSlim(cap) : null;
+
+        var tasks = subscriptions.Select(async subscription =>
+        {
+            if (throttle is not null)
+                await throttle.WaitAsync(ct);
+            try
+            {
+                return await SendOneAsync(subscription, message, channels, ct);
+            }
+            finally
+            {
+                throttle?.Release();
+            }
+        }).ToList();
+
+        await foreach (var task in Task.WhenEach(tasks).WithCancellation(ct))
+            yield return await task;
+    }
+
     private async Task<ChannelSendResult> SendOneAsync(
         Subscription subscription, NotificationMessage message, IReadOnlyCollection<NotificationChannel>? channels, CancellationToken ct)
     {

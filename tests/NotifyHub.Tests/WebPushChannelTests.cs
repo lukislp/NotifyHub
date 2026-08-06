@@ -79,4 +79,52 @@ public class WebPushChannelTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             channel.SendAsync(incomplete, new NotificationMessage { Title = "T", Body = "B" }));
     }
+
+    [Fact]
+    public async Task SendAsync_Uses24hTtl_ByDefault_AndOmitsUrgencyAndTopic()
+    {
+        var handler = new FakeHttpMessageHandler().Enqueue(HttpStatusCode.Created);
+        var channel = new WebPushChannel(CreateVapidKeyProvider(), new HttpClient(handler));
+
+        await channel.SendAsync(CreateSubscription(), new NotificationMessage { Title = "T", Body = "B" });
+
+        var request = handler.Requests[0];
+        Assert.Equal("86400", request.Headers.GetValues("TTL").Single());
+        Assert.False(request.Headers.Contains("Urgency"));
+        Assert.False(request.Headers.Contains("Topic"));
+    }
+
+    [Fact]
+    public async Task SendAsync_SetsTtlUrgencyAndTopic_WhenConfigured()
+    {
+        var handler = new FakeHttpMessageHandler().Enqueue(HttpStatusCode.Created);
+        var channel = new WebPushChannel(CreateVapidKeyProvider(), new HttpClient(handler));
+        var message = new NotificationMessage
+        {
+            Title = "T",
+            Body = "B",
+            TimeToLive = TimeSpan.FromMinutes(5),
+            Priority = NotificationPriority.High,
+            CollapseId = "score-42",
+        };
+
+        await channel.SendAsync(CreateSubscription(), message);
+
+        var request = handler.Requests[0];
+        Assert.Equal("300", request.Headers.GetValues("TTL").Single());
+        Assert.Equal("high", request.Headers.GetValues("Urgency").Single());
+        Assert.Equal("score-42", request.Headers.GetValues("Topic").Single());
+    }
+
+    [Fact]
+    public async Task SendAsync_SetsLowUrgency_ForLowPriority()
+    {
+        var handler = new FakeHttpMessageHandler().Enqueue(HttpStatusCode.Created);
+        var channel = new WebPushChannel(CreateVapidKeyProvider(), new HttpClient(handler));
+
+        await channel.SendAsync(CreateSubscription(),
+            new NotificationMessage { Title = "T", Body = "B", Priority = NotificationPriority.Low });
+
+        Assert.Equal("low", handler.Requests[0].Headers.GetValues("Urgency").Single());
+    }
 }

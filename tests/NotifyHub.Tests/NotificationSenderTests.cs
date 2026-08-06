@@ -162,6 +162,47 @@ public class NotificationSenderTests
         Assert.Equal(10, tracker.MaxObservedConcurrency);
     }
 
+    [Fact]
+    public async Task SendStreamAsync_YieldsOneResultPerSubscription()
+    {
+        var webPush = new FakeChannel(NotificationChannel.WebPush);
+        var sender = new NotificationSender([webPush]);
+        var subscriptions = Enumerable.Range(0, 5).Select(i => Subscription.WebPush($"endpoint{i}", "p256dh", "auth", id: $"sub-{i}")).ToList();
+
+        var results = new List<ChannelSendResult>();
+        await foreach (var result in sender.SendStreamAsync(Message, subscriptions))
+            results.Add(result);
+
+        Assert.Equal(5, results.Count);
+        Assert.Equal(5, webPush.CallCount);
+        // Completion order is not guaranteed - correlate via subscription IDs instead.
+        Assert.Equal(
+            subscriptions.Select(s => s.Id).Order(),
+            results.Select(r => r.Subscription.Id).Order());
+        Assert.All(results, r => Assert.Equal(SendOutcome.Delivered, r.Outcome));
+    }
+
+    [Fact]
+    public async Task SendStreamAsync_RespectsChannelFilterAndConcurrency()
+    {
+        var tracker = new ConcurrencyTrackingChannel(NotificationChannel.WebPush, TimeSpan.FromMilliseconds(50));
+        var apns = new FakeChannel(NotificationChannel.Apns);
+        var sender = new NotificationSender([tracker, apns]);
+        var subscriptions = Enumerable.Range(0, 6)
+            .Select(i => Subscription.WebPush($"endpoint{i}", "p256dh", "auth"))
+            .Append(Subscription.Apns("token", id: "iphone-1"))
+            .ToList();
+
+        var results = new List<ChannelSendResult>();
+        await foreach (var result in sender.SendStreamAsync(Message, subscriptions, channels: [NotificationChannel.WebPush], maxConcurrency: 2))
+            results.Add(result);
+
+        Assert.Equal(7, results.Count);
+        Assert.Equal(0, apns.CallCount);
+        Assert.Equal(SendOutcome.Skipped, results.Single(r => r.Subscription.Id == "iphone-1").Outcome);
+        Assert.True(tracker.MaxObservedConcurrency <= 2, $"Expected max concurrency <= 2 but was {tracker.MaxObservedConcurrency}.");
+    }
+
     private sealed class ConcurrencyTrackingChannel(NotificationChannel channel, TimeSpan delay) : Abstractions.INotificationChannel
     {
         private int _current;
