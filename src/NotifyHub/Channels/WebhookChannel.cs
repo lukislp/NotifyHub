@@ -49,8 +49,10 @@ public sealed class WebhookChannel(HttpClient? httpClient = null, ILogger<Webhoo
 
             if (subscription.WebhookSecret is not null)
             {
-                var signature = Convert.ToHexStringLower(HMACSHA256.HashData(
-                    Encoding.UTF8.GetBytes(subscription.WebhookSecret), Encoding.UTF8.GetBytes(payload)));
+                // ToLowerInvariant instead of Convert.ToHexStringLower - the latter is .NET 9+
+                // and this library also targets net8.0.
+                var signature = Convert.ToHexString(HMACSHA256.HashData(
+                    Encoding.UTF8.GetBytes(subscription.WebhookSecret), Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
                 request.Headers.TryAddWithoutValidation("X-NotifyHub-Signature", $"sha256={signature}");
             }
 

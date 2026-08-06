@@ -55,7 +55,7 @@ simply skipped (`SendOutcome.Skipped`) - no exceptions, no special-casing requir
 
 ## Requirements
 
-- .NET 10.0 or later
+- .NET 8.0 or later (multi-targeted: `net8.0` and `net10.0`)
 - ASP.NET Core (only for the optional `NotifyHub.AspNetCore` HTTP endpoints add-on)
 
 ## Installation
@@ -153,7 +153,7 @@ needs no configuration and is always active.
 |---|---|
 | `Subscription` | One delivery target for exactly one channel (a browser's push endpoint, a device token, a webhook URL, or an email address). Created via `Subscription.WebPush(...)`, `.Apns(...)`, `.Fcm(...)`, `.Webhook(...)`, or `.Email(...)`. |
 | `NotificationMessage` | Channel-independent content: `Title`, `Body`, optional `Url`, `Data` dictionary, `Badge` (APNs badge count), `Sound` (APNs custom sound), `Silent` (background/data-only push - APNs/FCM/WebPush), `ImageUrl` (FCM/WebPush/Webhook), `TimeToLive` (delivery window - WebPush/APNs/FCM), `Priority` (delivery urgency - WebPush/APNs/FCM), `CollapseId` (replace-instead-of-stack - WebPush/APNs/FCM), `HtmlBody` (HTML email with plain-text fallback). Every field beyond `Title`/`Body` is optional and only used by the channels that understand it. |
-| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions, channels?, maxConcurrency?)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. `SendStreamAsync(...)` is the streaming variant: it yields each result as soon as that send completes (completion order), useful for progress reporting on large broadcasts. Which users/subscriptions are targeted is entirely up to what you pass in; the optional `channels` allow-list restricts delivery to specific channel types (e.g. WebPush only) without having to filter the subscription list yourself; the optional `maxConcurrency` caps how many sends run at once (useful for very large broadcasts - see below). |
+| `NotificationSender` | The single entry point. `SendAsync(message, subscriptions, options?)` fans out to every subscription's channel in parallel and returns one `ChannelSendResult` per subscription. `SendStreamAsync(...)` is the streaming variant: it yields each result as soon as that send completes (completion order), useful for progress reporting on large broadcasts. Which users/subscriptions are targeted is entirely up to what you pass in; the optional `SendOptions` carries `Channels` (an allow-list restricting delivery to specific channel types, e.g. WebPush only) and `MaxConcurrency` (caps how many sends run at once - useful for very large broadcasts, see below). |
 | `ChannelSendResult` / `SendOutcome` | Per-subscription outcome: `Delivered`, `Expired`, `Failed`, or `Skipped`. See [Handling send results](#handling-send-results). |
 
 NotifyHub never persists subscriptions itself - the host app owns that list completely and passes
@@ -164,10 +164,10 @@ its own is the Web Push VAPID key pair (see [Custom storage](#custom-storage)).
 zero-config behavior) - fine for small/medium subscriber counts. Sending to tens of thousands of
 subscriptions at once can exhaust the local HTTP connection pool and trip provider-side rate
 limits (APNs/FCM throttle aggressively), which would show up as spurious `SendOutcome.Failed`
-results. Pass `maxConcurrency` to cap how many sends are in flight simultaneously:
+results. Pass `SendOptions.MaxConcurrency` to cap how many sends are in flight simultaneously:
 
 ```csharp
-await sender.SendAsync(message, allSubscriptions, maxConcurrency: 200);
+await sender.SendAsync(message, allSubscriptions, new SendOptions { MaxConcurrency = 200 });
 ```
 
 For very large broadcasts, `SendStreamAsync` additionally yields each result as soon as that
@@ -175,7 +175,7 @@ individual send finishes (instead of waiting for the whole batch), so progress c
 and expired subscriptions cleaned up while the rest are still in flight:
 
 ```csharp
-await foreach (var result in sender.SendStreamAsync(message, allSubscriptions, maxConcurrency: 200))
+await foreach (var result in sender.SendStreamAsync(message, allSubscriptions, new SendOptions { MaxConcurrency = 200 }))
 {
     if (result.Outcome == SendOutcome.Expired)
         await myStore.DeleteAsync(result.Subscription.Id);

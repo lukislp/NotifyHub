@@ -136,7 +136,10 @@ public static class NotifyHubEndpoints
                 CollapseId = req.CollapseId,
                 HtmlBody = req.HtmlBody,
             };
-            var results = await sender.SendAsync(message, targets.Select(t => t.Subscription), req.Channels, req.MaxConcurrency);
+            var results = await sender.SendAsync(
+                message,
+                targets.Select(t => t.Subscription),
+                new SendOptions { Channels = req.Channels, MaxConcurrency = req.MaxConcurrency });
 
             // Automatically clean up expired subscriptions (pattern: HTTP 410/BadDeviceToken/UNREGISTERED).
             foreach (var (target, result) in targets.Zip(results))

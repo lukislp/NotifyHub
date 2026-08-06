@@ -149,8 +149,8 @@ public class WebhookChannelTests
         await channel.SendAsync(subscription, new NotificationMessage { Title = "T", Body = "B" });
 
         var signatureHeader = capturedRequest!.Headers.GetValues("X-NotifyHub-Signature").Single();
-        var expected = "sha256=" + Convert.ToHexStringLower(
-            HMACSHA256.HashData(Encoding.UTF8.GetBytes("top-secret"), Encoding.UTF8.GetBytes(capturedBody!)));
+        var expected = "sha256=" + Convert.ToHexString(
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes("top-secret"), Encoding.UTF8.GetBytes(capturedBody!))).ToLowerInvariant();
         Assert.Equal(expected, signatureHeader);
     }
 

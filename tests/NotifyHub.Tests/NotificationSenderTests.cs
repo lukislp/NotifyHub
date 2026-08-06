@@ -116,7 +116,7 @@ public class NotificationSenderTests
             Subscription.Apns("token", id: "iphone-1"),
         };
 
-        var results = await sender.SendAsync(Message, subscriptions, channels: [NotificationChannel.WebPush]);
+        var results = await sender.SendAsync(Message, subscriptions, new SendOptions { Channels = [NotificationChannel.WebPush] });
 
         Assert.Equal(1, webPush.CallCount);
         Assert.Equal(0, apns.CallCount); // excluded by the filter, never even called
@@ -131,7 +131,7 @@ public class NotificationSenderTests
         var webPush = new FakeChannel(NotificationChannel.WebPush);
         var sender = new NotificationSender([webPush]);
 
-        var results = await sender.SendAsync(Message, [Subscription.WebPush("endpoint", "p256dh", "auth")], channels: []);
+        var results = await sender.SendAsync(Message, [Subscription.WebPush("endpoint", "p256dh", "auth")], new SendOptions { Channels = [] });
 
         Assert.Equal(0, webPush.CallCount);
         Assert.Equal(SendOutcome.Skipped, results[0].Outcome);
@@ -144,7 +144,7 @@ public class NotificationSenderTests
         var sender = new NotificationSender([tracker]);
         var subscriptions = Enumerable.Range(0, 10).Select(i => Subscription.WebPush($"endpoint{i}", "p256dh", "auth")).ToList();
 
-        var results = await sender.SendAsync(Message, subscriptions, maxConcurrency: 2);
+        var results = await sender.SendAsync(Message, subscriptions, new SendOptions { MaxConcurrency = 2 });
 
         Assert.Equal(10, results.Count);
         Assert.True(tracker.MaxObservedConcurrency <= 2, $"Expected max concurrency <= 2 but was {tracker.MaxObservedConcurrency}.");
@@ -194,7 +194,7 @@ public class NotificationSenderTests
             .ToList();
 
         var results = new List<ChannelSendResult>();
-        await foreach (var result in sender.SendStreamAsync(Message, subscriptions, channels: [NotificationChannel.WebPush], maxConcurrency: 2))
+        await foreach (var result in sender.SendStreamAsync(Message, subscriptions, new SendOptions { Channels = [NotificationChannel.WebPush], MaxConcurrency = 2 }))
             results.Add(result);
 
         Assert.Equal(7, results.Count);
@@ -206,7 +206,7 @@ public class NotificationSenderTests
     private sealed class ConcurrencyTrackingChannel(NotificationChannel channel, TimeSpan delay) : Abstractions.INotificationChannel
     {
         private int _current;
-        private readonly Lock _lock = new();
+        private readonly object _lock = new(); // System.Threading.Lock is .NET 9+; tests also run on net8.0
 
         public int MaxObservedConcurrency { get; private set; }
         public NotificationChannel Channel { get; } = channel;
