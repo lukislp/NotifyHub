@@ -47,6 +47,8 @@ public sealed class FcmChannel : INotificationChannel
             return new ChannelSendResult(subscription, SendOutcome.Skipped);
         if (subscription.DeviceToken is null)
             throw new ArgumentException("FCM subscription requires DeviceToken.", nameof(subscription));
+        if (message.TimeToLive is { Ticks: < 0 })
+            throw new ArgumentException("TimeToLive must not be negative.", nameof(message));
 
         var options = _options!;
         // A silent/data-only message omits "notification" entirely per FCM's convention - the
@@ -67,7 +69,7 @@ public sealed class FcmChannel : INotificationChannel
         // something, so the default request body stays byte-for-byte as before.
         var android = new Dictionary<string, object?>();
         if (message.TimeToLive is { } ttl)
-            android["ttl"] = $"{(long)ttl.TotalSeconds}s"; // FCM v1 expects a "<seconds>s" string
+            android["ttl"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(long)ttl.TotalSeconds}s"); // FCM v1 expects a "<seconds>s" string
         if (message.Priority != NotificationPriority.Normal)
             android["priority"] = message.Priority == NotificationPriority.High ? "HIGH" : "NORMAL";
         if (message.CollapseId is not null)

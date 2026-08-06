@@ -75,8 +75,9 @@ public sealed class ApnsChannel : INotificationChannel
         var apsJson = JsonSerializer.Serialize(payload);
         // Apple rejects payloads over 4 KB with PayloadTooLarge - warn upfront so the cause is
         // obvious locally instead of only surfacing as a provider-side 413.
-        if (Encoding.UTF8.GetByteCount(apsJson) > 4096)
-            _logger?.LogWarning("APNs payload exceeds Apple's 4 KB limit ({Size} bytes) and will be rejected - reduce Data/alert content.", Encoding.UTF8.GetByteCount(apsJson));
+        var payloadSize = Encoding.UTF8.GetByteCount(apsJson);
+        if (payloadSize > 4096)
+            _logger?.LogWarning("APNs payload exceeds Apple's 4 KB limit ({Size} bytes) and will be rejected - reduce Data/alert content.", payloadSize);
 
         try
         {
@@ -94,7 +95,7 @@ public sealed class ApnsChannel : INotificationChannel
             var priority = message.Silent || message.Priority == NotificationPriority.Low ? "5" : "10";
             request.Headers.TryAddWithoutValidation("apns-priority", priority);
             if (message.TimeToLive is { } ttl)
-                request.Headers.TryAddWithoutValidation("apns-expiration", DateTimeOffset.UtcNow.Add(ttl).ToUnixTimeSeconds().ToString());
+                request.Headers.TryAddWithoutValidation("apns-expiration", DateTimeOffset.UtcNow.Add(ttl).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
             if (message.CollapseId is not null)
                 request.Headers.TryAddWithoutValidation("apns-collapse-id", message.CollapseId);
 

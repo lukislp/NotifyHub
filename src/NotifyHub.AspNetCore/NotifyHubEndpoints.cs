@@ -108,6 +108,11 @@ public static class NotifyHubEndpoints
 
         group.MapPost("/notifications/send", async (SendRequest req, ISubscriptionStore store, NotificationSender sender) =>
         {
+            if (req.MaxConcurrency is < 1)
+                return Results.BadRequest(new { error = "maxConcurrency must be at least 1." });
+            if (req.TimeToLiveSeconds is < 0)
+                return Results.BadRequest(new { error = "timeToLiveSeconds must not be negative." });
+
             var targets = req.Broadcast
                 ? await store.GetAllAsync()
                 : req.UserIds is { Length: > 0 }

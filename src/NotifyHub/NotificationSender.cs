@@ -42,6 +42,9 @@ public sealed class NotificationSender
             return await Task.WhenAll(tasks);
         }
 
+        if (maxConcurrency < 1)
+            throw new ArgumentOutOfRangeException(nameof(options), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
+
         using var throttle = new SemaphoreSlim(maxConcurrency);
         var throttledTasks = subscriptions.Select(async subscription =>
         {
@@ -71,36 +74,54 @@ public sealed class NotificationSender
         SendOptions? options = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        using var throttle = options?.MaxConcurrency is { } cap ? new SemaphoreSlim(cap) : null;
-
-        var tasks = subscriptions.Select(async subscription =>
+        if (options?.MaxConcurrency is not { } maxConcurrency)
         {
-            if (throttle is not null)
-                await throttle.WaitAsync(ct);
-            try
-            {
-                return await SendOneAsync(subscription, message, options?.Channels, ct);
-            }
-            finally
-            {
-                throttle?.Release();
-            }
-        }).ToList();
+            var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, options?.Channels, ct)).ToList();
 
 #if NET9_0_OR_GREATER
-        await foreach (var task in Task.WhenEach(tasks).WithCancellation(ct))
-            yield return await task;
+            await foreach (var task in Task.WhenEach(tasks).WithCancellation(ct))
+                yield return await task;
 #else
-        // Task.WhenEach is .NET 9+ - fall back to a WhenAny drain loop on net8.0.
-        var pending = new List<Task<ChannelSendResult>>(tasks);
-        while (pending.Count > 0)
+            // Task.WhenEach is .NET 9+ - fall back to a WhenAny drain loop on net8.0.
+            var pending = new List<Task<ChannelSendResult>>(tasks);
+            while (pending.Count > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                var completed = await Task.WhenAny(pending);
+                pending.Remove(completed);
+                yield return await completed;
+            }
+#endif
+            yield break;
+        }
+
+        if (maxConcurrency < 1)
+            throw new ArgumentOutOfRangeException(nameof(options), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
+
+        // Bounded producer/consumer: keep at most MaxConcurrency sends in flight and start the
+        // next one only as a previous one completes - subscriptions is enumerated lazily, so
+        // large broadcasts don't allocate/schedule one task per subscription up front.
+        var inFlight = new List<Task<ChannelSendResult>>(maxConcurrency);
+        using var enumerator = subscriptions.GetEnumerator();
+        var hasMore = true;
+        while (true)
         {
-            ct.ThrowIfCancellationRequested();
-            var completed = await Task.WhenAny(pending);
-            pending.Remove(completed);
+            while (hasMore && inFlight.Count < maxConcurrency)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (enumerator.MoveNext())
+                    inFlight.Add(SendOneAsync(enumerator.Current, message, options.Channels, ct));
+                else
+                    hasMore = false;
+            }
+
+            if (inFlight.Count == 0)
+                yield break;
+
+            var completed = await Task.WhenAny(inFlight);
+            inFlight.Remove(completed);
             yield return await completed;
         }
-#endif
     }
 
     private async Task<ChannelSendResult> SendOneAsync(

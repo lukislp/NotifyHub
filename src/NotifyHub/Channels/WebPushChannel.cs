@@ -27,6 +27,8 @@ public sealed class WebPushChannel(VapidKeyProvider vapidKeyProvider, HttpClient
     {
         if (subscription.Endpoint is null || subscription.P256dh is null || subscription.Auth is null)
             throw new ArgumentException("WebPush subscription requires Endpoint, P256dh, and Auth.", nameof(subscription));
+        if (message.TimeToLive is { Ticks: < 0 })
+            throw new ArgumentException("TimeToLive must not be negative.", nameof(message));
 
         var keys = await vapidKeyProvider.EnsureKeysAsync(ct);
         var client = httpClient;
@@ -59,11 +61,12 @@ public sealed class WebPushChannel(VapidKeyProvider vapidKeyProvider, HttpClient
             request.Headers.TryAddWithoutValidation("Authorization", $"vapid t={jwt}, k={keys.PublicKey}");
             // Default TTL of 24h (unchanged) unless the caller sets an explicit TimeToLive.
             var ttlSeconds = (long)(message.TimeToLive?.TotalSeconds ?? 86400);
-            request.Headers.Add("TTL", ttlSeconds.ToString());
+            request.Headers.Add("TTL", ttlSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
             if (message.Priority != NotificationPriority.Normal)
                 request.Headers.Add("Urgency", message.Priority == NotificationPriority.High ? "high" : "low");
             // RFC 8030 "Topic": a later message with the same topic replaces a still-queued
-            // earlier one at the push service (max 32 base64url characters).
+            // earlier one at the push service. Push services limit it to at most 32 base64url
+            // characters; the value is sent as-is, so callers must supply a compliant CollapseId.
             if (message.CollapseId is not null)
                 request.Headers.Add("Topic", message.CollapseId);
             request.Content = new ByteArrayContent(body);
