@@ -30,7 +30,11 @@ public sealed record SendRequest(
     string? Sound = null,
     bool Silent = false,
     string? ImageUrl = null,
-    int? MaxConcurrency = null);
+    int? MaxConcurrency = null,
+    int? TimeToLiveSeconds = null,
+    NotificationPriority Priority = NotificationPriority.Normal,
+    string? CollapseId = null,
+    string? HtmlBody = null);
 
 public sealed record SendResultDto(string? SubscriptionId, NotificationChannel Channel, string Outcome, string? Error);
 
@@ -104,6 +108,11 @@ public static class NotifyHubEndpoints
 
         group.MapPost("/notifications/send", async (SendRequest req, ISubscriptionStore store, NotificationSender sender) =>
         {
+            if (req.MaxConcurrency is < 1)
+                return Results.BadRequest(new { error = "maxConcurrency must be at least 1." });
+            if (req.TimeToLiveSeconds is < 0)
+                return Results.BadRequest(new { error = "timeToLiveSeconds must not be negative." });
+
             var targets = req.Broadcast
                 ? await store.GetAllAsync()
                 : req.UserIds is { Length: > 0 }
@@ -127,8 +136,15 @@ public static class NotifyHubEndpoints
                 Sound = req.Sound,
                 Silent = req.Silent,
                 ImageUrl = req.ImageUrl,
+                TimeToLive = req.TimeToLiveSeconds is { } ttl ? TimeSpan.FromSeconds(ttl) : null,
+                Priority = req.Priority,
+                CollapseId = req.CollapseId,
+                HtmlBody = req.HtmlBody,
             };
-            var results = await sender.SendAsync(message, targets.Select(t => t.Subscription), req.Channels, req.MaxConcurrency);
+            var results = await sender.SendAsync(
+                message,
+                targets.Select(t => t.Subscription),
+                new SendOptions { Channels = req.Channels, MaxConcurrency = req.MaxConcurrency });
 
             // Automatically clean up expired subscriptions (pattern: HTTP 410/BadDeviceToken/UNREGISTERED).
             foreach (var (target, result) in targets.Zip(results))

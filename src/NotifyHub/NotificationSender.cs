@@ -24,40 +24,33 @@ public sealed class NotificationSender
     /// pass only the subscriptions you want targeted (e.g. a single user's, or a hand-picked
     /// subset for a custom targeting rule).
     ///
-    /// <paramref name="channels"/> is an optional allow-list: when set, subscriptions whose
-    /// <see cref="NotificationChannel"/> isn't in the list are reported as
-    /// <see cref="SendOutcome.Skipped"/> without being sent - a convenience for "send to these
-    /// subscriptions, but only via WebPush" without having to filter the list yourself. Omit it
-    /// (the default) to send across every channel, unchanged from before this parameter
-    /// existed.
-    ///
-    /// <paramref name="maxConcurrency"/> is an optional cap on how many sends run at once. Left
-    /// unset (the default), every subscription is sent in full parallel via
-    /// <see cref="Task.WhenAll{TResult}(IEnumerable{Task{TResult}})"/>, unchanged from before this
-    /// parameter existed - fine for small/medium subscriber counts. For a large broadcast (e.g.
-    /// tens of thousands of subscriptions), firing every send at once can exhaust the local
-    /// connection pool and trip provider-side rate limits (APNs/FCM throttle aggressively) -
-    /// set a cap to bound how many HTTP calls are in flight simultaneously.</summary>
+    /// <paramref name="options"/> is optional: <see cref="SendOptions.Channels"/> restricts
+    /// delivery to specific channel types (everything else comes back
+    /// <see cref="SendOutcome.Skipped"/>), <see cref="SendOptions.MaxConcurrency"/> caps how many
+    /// sends run at once (recommended for very large broadcasts). Omit it entirely for the
+    /// default behavior: every channel, fully parallel via
+    /// <see cref="Task.WhenAll{TResult}(IEnumerable{Task{TResult}})"/>.</summary>
     public async Task<IReadOnlyList<ChannelSendResult>> SendAsync(
         NotificationMessage message,
         IEnumerable<Subscription> subscriptions,
-        IReadOnlyCollection<NotificationChannel>? channels = null,
-        int? maxConcurrency = null,
+        SendOptions? options = null,
         CancellationToken ct = default)
     {
-        if (maxConcurrency is null)
+        if (options?.MaxConcurrency is not { } maxConcurrency)
         {
-            var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, channels, ct));
+            var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, options?.Channels, ct));
             return await Task.WhenAll(tasks);
         }
 
-        using var throttle = new SemaphoreSlim(maxConcurrency.Value);
+        ValidateMaxConcurrency(maxConcurrency);
+
+        using var throttle = new SemaphoreSlim(maxConcurrency);
         var throttledTasks = subscriptions.Select(async subscription =>
         {
             await throttle.WaitAsync(ct);
             try
             {
-                return await SendOneAsync(subscription, message, channels, ct);
+                return await SendOneAsync(subscription, message, options.Channels, ct);
             }
             finally
             {
@@ -65,6 +58,74 @@ public sealed class NotificationSender
             }
         });
         return await Task.WhenAll(throttledTasks);
+    }
+
+    /// <summary>Streaming variant of <see cref="SendAsync"/>: yields each
+    /// <see cref="ChannelSendResult"/> as soon as that individual send completes, instead of
+    /// waiting for the whole batch. Useful for large broadcasts - progress can be reported and
+    /// expired subscriptions cleaned up while the remaining sends are still running. Results
+    /// arrive in <b>completion order</b>, not input order; use
+    /// <see cref="ChannelSendResult.Subscription"/> (e.g. its <c>Id</c>) to correlate.
+    /// <paramref name="options"/> behaves exactly as on <see cref="SendAsync"/>.</summary>
+    public async IAsyncEnumerable<ChannelSendResult> SendStreamAsync(
+        NotificationMessage message,
+        IEnumerable<Subscription> subscriptions,
+        SendOptions? options = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (options?.MaxConcurrency is not { } maxConcurrency)
+        {
+            var tasks = subscriptions.Select(subscription => SendOneAsync(subscription, message, options?.Channels, ct)).ToList();
+
+#if NET9_0_OR_GREATER
+            await foreach (var task in Task.WhenEach(tasks).WithCancellation(ct))
+                yield return await task;
+#else
+            // Task.WhenEach is .NET 9+ - fall back to a WhenAny drain loop on net8.0.
+            var pending = new List<Task<ChannelSendResult>>(tasks);
+            while (pending.Count > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                var completed = await Task.WhenAny(pending);
+                pending.Remove(completed);
+                yield return await completed;
+            }
+#endif
+            yield break;
+        }
+
+        ValidateMaxConcurrency(maxConcurrency);
+
+        // Bounded producer/consumer: keep at most MaxConcurrency sends in flight and start the
+        // next one only as a previous one completes - subscriptions is enumerated lazily, so
+        // large broadcasts don't allocate/schedule one task per subscription up front.
+        var inFlight = new List<Task<ChannelSendResult>>(maxConcurrency);
+        using var enumerator = subscriptions.GetEnumerator();
+        var hasMore = true;
+        while (true)
+        {
+            while (hasMore && inFlight.Count < maxConcurrency)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (enumerator.MoveNext())
+                    inFlight.Add(SendOneAsync(enumerator.Current, message, options.Channels, ct));
+                else
+                    hasMore = false;
+            }
+
+            if (inFlight.Count == 0)
+                yield break;
+
+            var completed = await Task.WhenAny(inFlight);
+            inFlight.Remove(completed);
+            yield return await completed;
+        }
+    }
+
+    private static void ValidateMaxConcurrency(int maxConcurrency)
+    {
+        if (maxConcurrency < 1)
+            throw new ArgumentOutOfRangeException(nameof(SendOptions.MaxConcurrency), maxConcurrency, $"{nameof(SendOptions.MaxConcurrency)} must be at least 1.");
     }
 
     private async Task<ChannelSendResult> SendOneAsync(

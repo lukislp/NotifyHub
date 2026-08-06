@@ -40,4 +40,31 @@ public sealed record NotificationMessage
     /// Notification Service Extension on the app side - out of scope for a server-side push) or
     /// Email.</summary>
     public string? ImageUrl { get; init; }
+
+    /// <summary>How long the push provider should keep trying to deliver this message when the
+    /// device is offline. Maps to the WebPush <c>TTL</c> header (default when unset: 24h, as
+    /// before), APNs <c>apns-expiration</c> (default when unset: Apple's own store-and-forward
+    /// policy), and FCM <c>android.ttl</c> (default when unset: FCM's 4-week maximum). Use a
+    /// short value for messages that become pointless quickly ("your driver has arrived").
+    /// Not applicable to Webhook/Email (delivered immediately or not at all).</summary>
+    public TimeSpan? TimeToLive { get; init; }
+
+    /// <summary>Delivery urgency. Default <see cref="NotificationPriority.Normal"/> = every
+    /// provider's standard behavior, unchanged from before this field existed. See
+    /// <see cref="NotificationPriority"/> for the per-provider mapping.</summary>
+    public NotificationPriority Priority { get; init; } = NotificationPriority.Normal;
+
+    /// <summary>Collapse/replacement key: a new notification with the same ID replaces the
+    /// previous one instead of stacking (e.g. a live score - five updates show as one
+    /// notification, not five). Maps to the WebPush <c>Topic</c> header (also passed as
+    /// <c>tag</c> in the payload for the service worker), APNs <c>apns-collapse-id</c>, and FCM
+    /// <c>android.collapse_key</c> + <c>android.notification.tag</c>. WebPush/APNs limit this
+    /// to 32/64 bytes respectively - keep it short.</summary>
+    public string? CollapseId { get; init; }
+
+    /// <summary>Optional HTML version of <see cref="Body"/> for the email channel. When set,
+    /// the email is sent as <c>multipart/alternative</c> with this HTML part plus the plain-text
+    /// <see cref="Body"/> as fallback - when unset, a plain-text-only email is sent, as before.
+    /// Ignored by every other channel.</summary>
+    public string? HtmlBody { get; init; }
 }

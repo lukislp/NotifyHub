@@ -205,4 +205,79 @@ public class ApnsChannelTests
         }
         finally { File.Delete(keyPath); }
     }
+
+    [Fact]
+    public async Task SendAsync_SetsExpirationAndCollapseId_WhenConfigured()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            HttpRequestMessage? capturedRequest = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedRequest = req;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+            var message = new NotificationMessage
+            {
+                Title = "T",
+                Body = "B",
+                TimeToLive = TimeSpan.FromMinutes(10),
+                CollapseId = "score-42",
+            };
+            var before = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds();
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"), message);
+
+            var expiration = long.Parse(capturedRequest!.Headers.GetValues("apns-expiration").Single());
+            Assert.InRange(expiration, before - 5, before + 5);
+            Assert.Equal("score-42", capturedRequest.Headers.GetValues("apns-collapse-id").Single());
+        }
+        finally { File.Delete(keyPath); }
+    }
+
+    [Fact]
+    public async Task SendAsync_OmitsExpirationAndCollapseId_ByDefault()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            HttpRequestMessage? capturedRequest = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedRequest = req;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"), new NotificationMessage { Title = "T", Body = "B" });
+
+            Assert.False(capturedRequest!.Headers.Contains("apns-expiration"));
+            Assert.False(capturedRequest.Headers.Contains("apns-collapse-id"));
+        }
+        finally { File.Delete(keyPath); }
+    }
+
+    [Fact]
+    public async Task SendAsync_UsesPriority5_ForLowPriorityAlerts()
+    {
+        var keyPath = CreateTempP8Key();
+        try
+        {
+            HttpRequestMessage? capturedRequest = null;
+            var handler = new FakeHttpMessageHandler().Enqueue(req =>
+            {
+                capturedRequest = req;
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+            var channel = new ApnsChannel(CreateOptions(keyPath), new HttpClient(handler));
+
+            await channel.SendAsync(Subscription.Apns("devicetoken"),
+                new NotificationMessage { Title = "T", Body = "B", Priority = NotificationPriority.Low });
+
+            Assert.Equal("5", capturedRequest!.Headers.GetValues("apns-priority").Single());
+        }
+        finally { File.Delete(keyPath); }
+    }
 }
