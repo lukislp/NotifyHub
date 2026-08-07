@@ -17,6 +17,10 @@ application that references it configures it via constructor/DI, decides how to 
 its own subscription storage. There is no NotifyHub daemon, no required database, and no vendor
 lock-in.
 
+![NotifyHub demo: subscribing to the Webhook channel, sending a test message, and the delivered payload showing up in the live log](docs/screenshot.png)
+
+*The included [demo](#running-the-demo) end-to-end: subscribe → send → `Delivered` → received by the log.*
+
 ## Table of contents
 
 - [Features](#features)
