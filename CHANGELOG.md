@@ -1,3 +1,10 @@
+## [0.2.2](https://github.com/lukislp/NotifyHub/compare/v0.2.1...v0.2.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* add a demo screenshot to the README ([9a1f298](https://github.com/lukislp/NotifyHub/commit/9a1f298f0b86a3a6439d14a614ae8143726326e9))
+
 ## [0.2.1](https://github.com/lukislp/NotifyHub/compare/v0.2.0...v0.2.1) (2026-08-07)
 
 
