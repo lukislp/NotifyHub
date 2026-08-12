@@ -23,10 +23,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # NotifyHub/NotifyHub.AspNetCore multi-target net8.0;net10.0 - both SDKs must be
       # installed side by side for one `dotnet test` run to exercise both.
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -43,8 +43,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -79,7 +79,7 @@ jobs:
       next_version: ${{ steps.semrel.outputs.new_release_version }}
       published: ${{ steps.semrel.outputs.new_release_published }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: semrel
@@ -106,11 +106,14 @@ jobs:
     needs: [get-version]
     if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: notifyhub-release-chain
+      cancel-in-progress: false
     env:
       NEXT_VERSION: ${{ needs.get-version.outputs.next_version }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -144,7 +147,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
@@ -165,8 +168,16 @@ jobs:
       # this job's checkout and its own push (the concurrency group above already serializes
       # overlapping runs of this workflow, so this only guards against a genuinely external push).
       - if: steps.semrel.outcome == 'failure'
+        name: "Diagnose before retrying (expected: an out-of-band push landed since checkout)"
         run: |
           git fetch origin main
+          BEFORE_SHA="$(git rev-parse HEAD)"
+          AFTER_SHA="$(git rev-parse origin/main)"
+          if [ "$BEFORE_SHA" != "$AFTER_SHA" ]; then
+            echo "origin/main moved since checkout ($BEFORE_SHA -> $AFTER_SHA) - this matches the out-of-band-push race this retry is designed for."
+          else
+            echo "::warning::origin/main did NOT move since checkout - this failure is likely NOT the expected out-of-band-push race. Retrying anyway, but check the semantic-release log above for the real cause before assuming this is just a race."
+          fi
           git checkout -B main origin/main
       - if: steps.semrel.outcome == 'failure'
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
