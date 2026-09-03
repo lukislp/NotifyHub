@@ -1,3 +1,10 @@
+## [0.2.3](https://github.com/lukislp/NotifyHub/compare/v0.2.2...v0.2.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **ci:** add Dependabot for github-actions, nuget ([f8e09e0](https://github.com/lukislp/NotifyHub/commit/f8e09e0575731d563f9aa1dbbbb7c9b24478991e))
+
 ## [0.2.2](https://github.com/lukislp/NotifyHub/compare/v0.2.1...v0.2.2) (2026-08-07)
 
 
