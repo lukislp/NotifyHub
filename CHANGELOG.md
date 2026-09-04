@@ -1,3 +1,12 @@
+## [0.2.4](https://github.com/lukislp/NotifyHub/compare/v0.2.3...v0.2.4) (2026-09-04)
+
+
+### Bug Fixes
+
+* **deps:** Bump coverlet.collector from 6.0.4 to 10.0.1 ([d358ba0](https://github.com/lukislp/NotifyHub/commit/d358ba00b006b9327b9398078037fcab4db915ac))
+* **deps:** Bump the dotnet group with 5 updates ([48b1dd2](https://github.com/lukislp/NotifyHub/commit/48b1dd29e10bd46d6cca096a0e46ae10ef8598e6))
+* **deps:** Bump xunit.runner.visualstudio from 3.1.4 to 4.0.0 ([cc2fd8e](https://github.com/lukislp/NotifyHub/commit/cc2fd8e32c23a1b407ddd1a582d493ef60d1ef82))
+
 ## [0.2.3](https://github.com/lukislp/NotifyHub/compare/v0.2.2...v0.2.3) (2026-09-03)
 
 
