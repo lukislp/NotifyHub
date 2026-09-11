@@ -1,3 +1,10 @@
+## [0.2.5](https://github.com/lukislp/NotifyHub/compare/v0.2.4...v0.2.5) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** push release commits as a deploy key so the default branch can be ruleset-protected ([c15bb35](https://github.com/lukislp/NotifyHub/commit/c15bb351ffafb119b7c11c4c87a08a4c9fde2ba6))
+
 ## [0.2.4](https://github.com/lukislp/NotifyHub/compare/v0.2.3...v0.2.4) (2026-09-04)
 
 
