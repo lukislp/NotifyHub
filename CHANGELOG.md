@@ -1,3 +1,10 @@
+## [0.2.6](https://github.com/lukislp/NotifyHub/compare/v0.2.5...v0.2.6) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** read-only GITHUB_TOKEN in the Dependabot auto-merge workflow ([3ef49fe](https://github.com/lukislp/NotifyHub/commit/3ef49fecb555e95c85f30780b50fe410628dd87c))
+
 ## [0.2.5](https://github.com/lukislp/NotifyHub/compare/v0.2.4...v0.2.5) (2026-09-11)
 
 
