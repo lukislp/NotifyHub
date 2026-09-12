@@ -1,6 +1,6 @@
 # NotifyHub
 
-[![CI/CD](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml)
+[![CI/CD](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/lukislp/NotifyHub/actions/workflows/ci-cd.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/lukislp/NotifyHub/badge)](https://scorecard.dev/viewer/?uri=github.com/lukislp/NotifyHub) [![CodeQL](https://github.com/lukislp/NotifyHub/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/lukislp/NotifyHub/security/code-scanning)
 [![Release](https://img.shields.io/github/v/release/lukislp/NotifyHub)](https://github.com/lukislp/NotifyHub/releases)
 [![License: MIT](https://img.shields.io/github/license/lukislp/NotifyHub)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)

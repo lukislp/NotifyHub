@@ -1,3 +1,24 @@
+## [0.2.7](https://github.com/lukislp/NotifyHub/compare/v0.2.6...v0.2.7) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** sign the release assets and attach build provenance ([#18](https://github.com/lukislp/NotifyHub/issues/18)) ([e5a4452](https://github.com/lukislp/NotifyHub/commit/e5a4452b3ee735c6f7c17e6e6d8bfc492f41a4bd))
+
+## [0.2.6](https://github.com/lukislp/NotifyHub/compare/v0.2.5...v0.2.6) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** read-only GITHUB_TOKEN in the Dependabot auto-merge workflow ([3ef49fe](https://github.com/lukislp/NotifyHub/commit/3ef49fecb555e95c85f30780b50fe410628dd87c))
+
+## [0.2.5](https://github.com/lukislp/NotifyHub/compare/v0.2.4...v0.2.5) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** push release commits as a deploy key so the default branch can be ruleset-protected ([c15bb35](https://github.com/lukislp/NotifyHub/commit/c15bb351ffafb119b7c11c4c87a08a4c9fde2ba6))
+
 ## [0.2.4](https://github.com/lukislp/NotifyHub/compare/v0.2.3...v0.2.4) (2026-09-04)
 
 
