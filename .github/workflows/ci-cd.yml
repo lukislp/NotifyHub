@@ -37,7 +37,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             nuget-${{ runner.os }}-
-      - run: dotnet restore tests/NotifyHub.Tests/NotifyHub.Tests.csproj
+      - run: dotnet restore tests/NotifyHub.Tests/NotifyHub.Tests.csproj --locked-mode
       - run: dotnet test tests/NotifyHub.Tests/NotifyHub.Tests.csproj --configuration ${{ env.CONFIGURATION }} --no-restore
 
   build:
@@ -55,7 +55,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             nuget-${{ runner.os }}-
-      - run: dotnet restore NotifyHub.slnx
+      - run: dotnet restore NotifyHub.slnx --locked-mode
       - run: dotnet build NotifyHub.slnx --configuration ${{ env.CONFIGURATION }} --no-restore
 
   # ---------------------------------------------------------------------
