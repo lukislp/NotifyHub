@@ -1,3 +1,11 @@
+## [0.2.8](https://github.com/lukislp/NotifyHub/compare/v0.2.7...v0.2.8) (2026-09-12)
+
+
+### Bug Fixes
+
+* **deps:** Bump Microsoft.Extensions.DependencyInjection.Abstractions and 4 others ([7149bd3](https://github.com/lukislp/NotifyHub/commit/7149bd3fe2aa5d7864d8adf991994729c8eef59d))
+* **deps:** Bump the dotnet group with 5 updates ([d8a9076](https://github.com/lukislp/NotifyHub/commit/d8a9076a4162dd05d2926abbf4480bde21b94666))
+
 ## [0.2.7](https://github.com/lukislp/NotifyHub/compare/v0.2.6...v0.2.7) (2026-09-11)
 
 
