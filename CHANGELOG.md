@@ -1,3 +1,11 @@
+## [0.2.9](https://github.com/lukislp/NotifyHub/compare/v0.2.8...v0.2.9) (2026-09-17)
+
+
+### Bug Fixes
+
+* **deps:** Bump MailKit from 4.17.0 to 4.18.0 ([55590a5](https://github.com/lukislp/NotifyHub/commit/55590a56a79e23790d0b1bb3b5992f2e3d583a50))
+* **deps:** Bump the dotnet group with 1 update ([5c31c72](https://github.com/lukislp/NotifyHub/commit/5c31c72bb2dab345cb1b7e6890daf2bb28d4838c))
+
 ## [0.2.8](https://github.com/lukislp/NotifyHub/compare/v0.2.7...v0.2.8) (2026-09-12)
 
 
