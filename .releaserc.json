@@ -1,27 +1,24 @@
 {
-    "branches":  [
-                     "main"
-                 ],
-    "plugins":  [
-                    "@semantic-release/commit-analyzer",
-                    "@semantic-release/release-notes-generator",
-                    {
-                        "value":  [
-                                      "@semantic-release/github",
-                                      {
-                                          "assets":  [
-                                                         {
-                                                             "path":  "packages/*.nupkg",
-                                                             "label":  "NuGet package"
-                                                         },
-                                                         {
-                                                             "path":  "packages/*.snupkg",
-                                                             "label":  "Symbol package"
-                                                         }
-                                                     ]
-                                      }
-                                  ],
-                        "Count":  2
-                    }
-                ]
+  "branches": [
+    "main"
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "packages/*.nupkg",
+            "label": "NuGet package"
+          },
+          {
+            "path": "packages/*.snupkg",
+            "label": "Symbol package"
+          }
+        ]
+      }
+    ]
+  ]
 }
