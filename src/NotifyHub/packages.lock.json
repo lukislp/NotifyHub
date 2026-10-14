@@ -51,6 +51,12 @@
           "System.IO.Hashing": "10.0.12"
         }
       },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "Direct",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -171,11 +177,6 @@
         "type": "Transitive",
         "resolved": "10.0.12",
         "contentHash": "jDix4bBMYnpZdSPcnY+KDV6ik3SRMzpMKby/bZl/XUwIiflwRNAFZ0oOl61R/pSaveIJ8t1gs2BUlrGsPs/bcg=="
-      },
-      "System.Security.Cryptography.Pkcs": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "UPWqLSygJlFerRi9XNIuM0a1VC8gHUIufyP24xQ0sc+XimqUAEcjpOz9DhKpyDjH+5B/wO3RpC0KpkEeDj/ddg=="
       }
     },
     "net8.0": {
@@ -230,6 +231,16 @@
           "System.IO.Hashing": "10.0.12"
         }
       },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "Direct",
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw==",
+        "dependencies": {
+          "Microsoft.Bcl.Cryptography": "10.0.13",
+          "System.Formats.Asn1": "10.0.13"
+        }
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -237,10 +248,10 @@
       },
       "Microsoft.Bcl.Cryptography": {
         "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "2iilO1H+fkDBOsfYbFO57N1ElPsbWxNXyAekEtZ7b0sPrfm1akvLj+Wr7DzZy0fcEGUrez2jSyqAn4sTxDsgbg==",
+        "resolved": "10.0.13",
+        "contentHash": "6H3QqvjxTgCt4gxVVCJVjo35Zh/gzjw7NXidIx0ghZrgYYMUja/7JJ4g39ynE/OH5YBBbUhlmirGR/AuYpNIuA==",
         "dependencies": {
-          "System.Formats.Asn1": "10.0.0"
+          "System.Formats.Asn1": "10.0.13"
         }
       },
       "Microsoft.Build.Tasks.Git": {
@@ -362,22 +373,13 @@
       },
       "System.Formats.Asn1": {
         "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "0QCZNYeRswlUVyo9N3hXrt5X9dqqRup53loU4K4JatdoYPhXHLrK9PwRtg5vP0Sr9QbdCOKk2luEdip/kV5Sig=="
+        "resolved": "10.0.13",
+        "contentHash": "uwKFGyJaUQ8xsf+wddv512+UIU1O4reOveom3y0gpQr86P1ReAKcQa/UdOZtg1etTIHgb01/grXp00tgeGBxqA=="
       },
       "System.IO.Hashing": {
         "type": "Transitive",
         "resolved": "10.0.12",
         "contentHash": "jDix4bBMYnpZdSPcnY+KDV6ik3SRMzpMKby/bZl/XUwIiflwRNAFZ0oOl61R/pSaveIJ8t1gs2BUlrGsPs/bcg=="
-      },
-      "System.Security.Cryptography.Pkcs": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "UPWqLSygJlFerRi9XNIuM0a1VC8gHUIufyP24xQ0sc+XimqUAEcjpOz9DhKpyDjH+5B/wO3RpC0KpkEeDj/ddg==",
-        "dependencies": {
-          "Microsoft.Bcl.Cryptography": "10.0.0",
-          "System.Formats.Asn1": "10.0.0"
-        }
       }
     }
   }
