@@ -23,6 +23,7 @@ env:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   # ---------------------------------------------------------------------
@@ -76,61 +77,31 @@ jobs:
   get-version:
     needs: [test, build]
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
     concurrency:
       group: notifyhub-release-chain
       cancel-in-progress: false
-    # @semantic-release/github's verifyConditions step checks the token has repo push access
-    # (contents: write) even during a dry run - a read-only token fails that check outright.
-    # issues:write/pull-requests:write are NOT needed here: those only get exercised by the
-    # publish/success/fail lifecycle steps, which dry_run: true skips entirely - confirmed
-    # live on the studylife-ai sibling repo (2026-08-12).
-    permissions:
-      contents: write
-    outputs:
-      next_version: ${{ steps.semrel.outputs.new_release_version }}
-      published: ${{ steps.semrel.outputs.new_release_published }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      # Ruleset bypass for the release commit (2026-09-11 main-protection rollout): main is
-      # protected by a ruleset (pull request + green test stage) that the GitHub Actions app
-      # cannot be a bypass actor for on a personal repository, so semantic-release pushes over
-      # SSH as a write-enabled DEPLOY KEY instead, which can. No-op while the secret is unset -
-      # the push then goes through the GITHUB_TOKEN https remote exactly as before. Needed in
-      # get-version too: @semantic-release/git's verifyConditions runs `git push --dry-run`
-      # even in dry-run mode. Same mechanism as lukislp/studylife's ci-cd.yml.
-      - name: Push as the semantic-release deploy key (if configured)
-        uses: lukislp/ci-workflows/.github/actions/deploy-key-push@ea532e9b173cf0e512c9d54c18886eebd0b0d1ab # v1.8.24
-        with:
-          deploy-key: ${{ secrets.SEMANTIC_RELEASE_DEPLOY_KEY }}
-      - id: semrel
-        uses: lukislp/ci-workflows/.github/actions/semantic-release@ea532e9b173cf0e512c9d54c18886eebd0b0d1ab # v1.8.24
-        with:
-          dry-run: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: No release needed for this push
-        if: steps.semrel.outputs.new_release_published != 'true'
-        run: |
-          echo "No releasable commits since the last tag (e.g. docs/ci/chore-only) - this is the expected, common case with Conventional Commits, not a failure. Downstream jobs below skip themselves via needs.get-version.outputs.published." | tee -a "$GITHUB_STEP_SUMMARY"
+    uses: lukislp/lktec-bot/.github/workflows/release.yml@0c0eccf67f1f06f21fd110626322a92c92e4cb82 # v0.1.1
+    with:
+      dry-run: true
+    secrets:
+      app-id: ${{ secrets.LKTEC_BOT_APP_ID }}
+      private-key: ${{ secrets.LKTEC_BOT_PRIVATE_KEY }}
 
-  # Packs both libraries at the version semantic-release just determined and uploads the
+  # Packs both libraries at the version the dry run just determined and uploads the
   # .nupkg/.snupkg files as a build artifact for the release job to attach to the GitHub
   # Release. Deliberately does NOT push to nuget.org - no NUGET_API_KEY secret yet; add a
   # `dotnet nuget push ... --source https://api.nuget.org/v3/index.json` step here (gated
   # on that secret being set) once it exists.
   pack:
     needs: [get-version]
-    if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
+    if: github.event_name == 'push' && needs.get-version.outputs.released == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
       group: notifyhub-release-chain
       cancel-in-progress: false
     env:
-      NEXT_VERSION: ${{ needs.get-version.outputs.next_version }}
+      NEXT_VERSION: ${{ needs.get-version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -152,12 +123,28 @@ jobs:
           path: artifacts/nuget/*
           retention-days: 7
 
-  semantic-release:
-    # get-version listed explicitly (not just transitively via pack) so its outputs are
-    # reliably accessible below - GitHub Actions' needs context only guarantees access to
-    # directly-listed dependencies.
+  release:
     needs: [get-version, pack]
-    if: github.event_name == 'push' && needs.get-version.outputs.published == 'true'
+    if: github.event_name == 'push' && needs.get-version.outputs.released == 'true'
+    concurrency:
+      group: notifyhub-release-chain
+      cancel-in-progress: false
+    uses: lukislp/lktec-bot/.github/workflows/release.yml@0c0eccf67f1f06f21fd110626322a92c92e4cb82 # v0.1.1
+    secrets:
+      app-id: ${{ secrets.LKTEC_BOT_APP_ID }}
+      private-key: ${{ secrets.LKTEC_BOT_PRIVATE_KEY }}
+
+  # Everything that used to run inside the release job after the tag: attach the NuGet
+  # packages to the GitHub Release (the assets the old release step uploaded), then the
+  # keyless signatures and the build provenance (OpenSSF Scorecard "Signed-Releases"): a Sigstore
+  # signature bundle per asset plus one GitHub build-provenance attestation, uploaded next to the
+  # assets so a download can be verified offline:
+  #   cosign verify-blob --bundle <asset>.sigstore.json \
+  #     --certificate-identity-regexp '^https://github.com/lukislp/NotifyHub/' \
+  #     --certificate-oidc-issuer https://token.actions.githubusercontent.com <asset>
+  release-assets:
+    needs: [release]
+    if: github.event_name == 'push' && needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -165,91 +152,45 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
-      # Keyless signing + build provenance for the release assets (see the last steps).
+      # Keyless signing + build provenance for the release assets.
       id-token: write
       attestations: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ needs.release.outputs.tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      # Ruleset bypass for the release commit (2026-09-11 main-protection rollout): main is
-      # protected by a ruleset (pull request + green test stage) that the GitHub Actions app
-      # cannot be a bypass actor for on a personal repository, so semantic-release pushes over
-      # SSH as a write-enabled DEPLOY KEY instead, which can. No-op while the secret is unset -
-      # the push then goes through the GITHUB_TOKEN https remote exactly as before. Needed in
-      # get-version too: @semantic-release/git's verifyConditions runs `git push --dry-run`
-      # even in dry-run mode. Same mechanism as lukislp/studylife's ci-cd.yml.
-      - name: Push as the semantic-release deploy key (if configured)
-        uses: lukislp/ci-workflows/.github/actions/deploy-key-push@ea532e9b173cf0e512c9d54c18886eebd0b0d1ab # v1.8.24
-        with:
-          deploy-key: ${{ secrets.SEMANTIC_RELEASE_DEPLOY_KEY }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-packages
           path: packages
-      - id: semrel
-        uses: lukislp/ci-workflows/.github/actions/semantic-release@ea532e9b173cf0e512c9d54c18886eebd0b0d1ab # v1.8.24
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-      # Retry once for the narrow window where an out-of-band push to main landed between
-      # this job's checkout and its own push (the concurrency group above already serializes
-      # overlapping runs of this workflow, so this only guards against a genuinely external push).
-      - if: steps.semrel.outcome == 'failure'
-        name: "Diagnose before retrying (expected: an out-of-band push landed since checkout)"
+      - name: Attach the NuGet packages to the release
         run: |
-          git fetch origin main
-          BEFORE_SHA="$(git rev-parse HEAD)"
-          AFTER_SHA="$(git rev-parse origin/main)"
-          if [ "$BEFORE_SHA" != "$AFTER_SHA" ]; then
-            echo "origin/main moved since checkout ($BEFORE_SHA -> $AFTER_SHA) - this matches the out-of-band-push race this retry is designed for."
-          else
-            echo "::warning::origin/main did NOT move since checkout - this failure is likely NOT the expected out-of-band-push race. Retrying anyway, but check the semantic-release log above for the real cause before assuming this is just a race."
-          fi
-          git checkout -B main origin/main
-      - if: steps.semrel.outcome == 'failure'
-        id: semrel_retry
-        uses: lukislp/ci-workflows/.github/actions/semantic-release@ea532e9b173cf0e512c9d54c18886eebd0b0d1ab # v1.8.24
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-      # Signed release assets (OpenSSF Scorecard "Signed-Releases"): a keyless Sigstore
-      # signature bundle per asset plus one GitHub build-provenance attestation, uploaded next
-      # to the assets so a download can be verified offline:
-      #   cosign verify-blob --bundle <asset>.sigstore.json \
-      #     --certificate-identity-regexp '^https://github.com/lukislp/NotifyHub/' \
-      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com <asset>
+          for f in packages/*.nupkg; do
+            gh release upload "$TAG" "$f#NuGet package" --clobber --repo "$GITHUB_REPOSITORY"
+          done
+          for f in packages/*.snupkg; do
+            gh release upload "$TAG" "$f#Symbol package" --clobber --repo "$GITHUB_REPOSITORY"
+          done
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        if: steps.semrel.outcome == 'success' || steps.semrel_retry.outcome == 'success'
       - name: Sign the release assets and attach the signature bundles
-        if: steps.semrel.outcome == 'success' || steps.semrel_retry.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.semrel.outputs.new_release_git_tag || steps.semrel_retry.outputs.new_release_git_tag }}
         run: |
           for f in packages/*.nupkg packages/*.snupkg; do
             cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
             cosign verify-blob --bundle "$f.sigstore.json" \
               --certificate-identity-regexp '^https://github.com/lukislp/NotifyHub/\.github/workflows/ci-cd\.yml@refs/heads/main$' \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com "$f"
-            gh release upload "$TAG" "$f.sigstore.json" --clobber
+            gh release upload "$TAG" "$f.sigstore.json" --clobber --repo "$GITHUB_REPOSITORY"
           done
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        if: steps.semrel.outcome == 'success' || steps.semrel_retry.outcome == 'success'
         id: provenance
         with:
           subject-path: |
             packages/*.nupkg
             packages/*.snupkg
       - name: Attach the build provenance to the release
-        if: steps.semrel.outcome == 'success' || steps.semrel_retry.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.semrel.outputs.new_release_git_tag || steps.semrel_retry.outputs.new_release_git_tag }}
         run: |
           cp "${{ steps.provenance.outputs.bundle-path }}" provenance.intoto.jsonl
-          gh release upload "$TAG" provenance.intoto.jsonl --clobber
+          gh release upload "$TAG" provenance.intoto.jsonl --clobber --repo "$GITHUB_REPOSITORY"
 
   # ---------------------------------------------------------------------
   # Signature backfill for older releases - manual dispatch only
